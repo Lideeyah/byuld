@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { MoonPayBuyWidget } from "@moonpay/moonpay-react";
+import { useWallets } from "@privy-io/react-auth";
+import { createWalletClient, createPublicClient, custom, http, type Chain } from "viem";
+import { base, baseSepolia, mainnet, polygon } from "viem/chains";
 import { C, F, R } from "../../tokens";
 import Logo from "../../components/layout/Logo";
 import Button from "../../components/ui/Button";
@@ -17,12 +20,18 @@ const DEPLOY_STAGES = [
   { id: "confirm", label: "Waiting for confirmation…",  sub: "Usually 15–60 seconds on Base" },
 ];
 
-function genAddress() {
-  return "0x" + Array.from({ length: 40 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
-}
-function genTx() {
-  return "0x" + Array.from({ length: 64 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
-}
+const VIEM_CHAINS: Record<string, Chain> = {
+  base: base, "base-sepolia": baseSepolia,
+  ethereum: mainnet, polygon: polygon, sepolia: baseSepolia,
+};
+
+const PUBLIC_RPC: Record<string, string> = {
+  base: "https://mainnet.base.org",
+  "base-sepolia": "https://sepolia.base.org",
+  ethereum: "https://eth.drpc.org",
+  polygon: "https://polygon.drpc.org",
+  sepolia: "https://sepolia.base.org",
+};
 
 const CHAIN_FEE: Record<string, number> = {
   base: 0.80, ethereum: 4.50, polygon: 0.20, sepolia: 0, "base-sepolia": 0,
@@ -78,7 +87,9 @@ function StripeForm({ onSuccess }: { onSuccess: () => void }) {
 export default function PaymentFlow() {
   const navigate = useNavigate();
   const { state, dispatch } = useApp();
+  const { wallets } = useWallets();
   const [step, setStep] = useState<PayStep>("summary");
+  const [deployError, setDeployError] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [loadingSecret, setLoadingSecret] = useState(false);
   const [deployStage, setDeployStage] = useState(0);
@@ -266,6 +277,11 @@ export default function PaymentFlow() {
               <div style={{ fontFamily: F.mono, fontSize: "11px", color: C.purple, wordBreak: "break-all" }}>{txHash.slice(0, 42)}…</div>
             </div>
           )}
+          {deployError && (
+            <div style={{ padding: "12px 14px", background: `${C.danger}0A`, border: `1px solid ${C.danger}44`, borderRadius: R.md, fontSize: "12px", color: C.danger, fontFamily: F.body }}>
+              ⚠ {deployError}
+            </div>
+          )}
         </div>
       </Shell>
     );
@@ -274,32 +290,61 @@ export default function PaymentFlow() {
   return null;
 
   async function runDeploy() {
-    await sleep(800);
-    const tx = genTx();
-    setTxHash(tx);
-    setDeployStage(1);
-    await sleep(1500);
-    setDeployStage(2);
-    await sleep(2500);
-    const addr = genAddress();
-    dispatch({ type: "SET_DEPLOYED", contractAddress: addr, txHash: tx });
-
-    // Fire-and-forget deploy notification — doesn't block navigation
-    if (state.email) {
-      fetch("/api/notify-deploy", {
+    setDeployError("");
+    try {
+      // ── Stage 0: compile ──────────────────────────────────────────────────
+      const source = state.sections.map(s => s.code).filter(Boolean).join("\n\n");
+      const compileRes = await fetch("/api/compile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: state.email,
-          contractAddress: addr,
-          chain: state.chain,
-          contractType: state.contractType,
-          txHash: tx,
-        }),
-      }).catch(() => { /* non-critical */ });
-    }
+        body: JSON.stringify({ source }),
+      });
+      const compiled = await compileRes.json();
+      if (!compileRes.ok) throw new Error(compiled.errors?.[0] ?? "Compilation failed");
 
-    navigate("/success");
+      // ── Stage 1: get wallet + sign ────────────────────────────────────────
+      setDeployStage(0);
+      const wallet = wallets[0];
+      if (!wallet) throw new Error("No wallet connected. Please go back and connect your wallet.");
+      const provider = await wallet.getEthereumProvider();
+      const viemChain = VIEM_CHAINS[state.chain] ?? base;
+      const walletClient = createWalletClient({ chain: viemChain, transport: custom(provider) });
+      const [account] = await walletClient.getAddresses();
+
+      // ── Stage 2: broadcast ────────────────────────────────────────────────
+      setDeployStage(1);
+      const hash = await walletClient.deployContract({
+        abi: compiled.abi,
+        bytecode: compiled.bytecode as `0x${string}`,
+        account,
+      });
+      setTxHash(hash);
+
+      // ── Stage 3: wait for confirmation ────────────────────────────────────
+      setDeployStage(2);
+      const publicClient = createPublicClient({
+        chain: viemChain,
+        transport: http(PUBLIC_RPC[state.chain] ?? PUBLIC_RPC.base),
+      });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      const contractAddress = receipt.contractAddress ?? "";
+
+      dispatch({ type: "SET_DEPLOYED", contractAddress, txHash: hash });
+
+      if (state.email) {
+        fetch("/api/notify-deploy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: state.email, contractAddress, chain: state.chain, contractType: state.contractType, txHash: hash }),
+        }).catch(() => {});
+      }
+
+      navigate("/success");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Deployment failed";
+      setDeployError(msg);
+      setStep("moonpay"); // go back so user can retry
+    }
   }
 }
 

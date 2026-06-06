@@ -4,6 +4,7 @@ import cors from "cors";
 import crypto from "crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import Stripe from "stripe";
+import solc from "solc";
 
 const app = express();
 // In production ALLOWED_ORIGIN is set to the Vercel URL; in dev allow everything
@@ -120,6 +121,39 @@ app.post("/api/ai/stream", async (req, res) => {
     send({ error: err.message, done: true, tokens: 0 });
     res.end();
   }
+});
+
+// ─── POST /api/compile ────────────────────────────────────────────────────────
+
+app.post("/api/compile", (req, res) => {
+  const { source } = req.body;
+  if (!source) return res.status(400).json({ error: "source is required" });
+
+  const input = JSON.stringify({
+    language: "Solidity",
+    sources: { "contract.sol": { content: source } },
+    settings: { outputSelection: { "*": { "*": ["abi", "evm.bytecode"] } } },
+  });
+
+  let output;
+  try { output = JSON.parse(solc.compile(input)); }
+  catch (err) { return res.status(500).json({ error: "Compiler crashed: " + err.message }); }
+
+  const errors = (output.errors ?? []).filter(e => e.severity === "error");
+  if (errors.length) return res.status(400).json({ errors: errors.map(e => e.formattedMessage) });
+
+  const fileContracts = output.contracts?.["contract.sol"];
+  if (!fileContracts) return res.status(400).json({ error: "No contracts found" });
+
+  const contractName = Object.keys(fileContracts)[0];
+  const contract = fileContracts[contractName];
+
+  res.json({
+    contractName,
+    abi: contract.abi,
+    bytecode: "0x" + contract.evm.bytecode.object,
+    warnings: (output.errors ?? []).filter(e => e.severity === "warning").map(e => e.formattedMessage),
+  });
 });
 
 // ─── POST /api/create-payment-intent ─────────────────────────────────────────

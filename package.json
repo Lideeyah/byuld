@@ -1,0 +1,36 @@
+{
+  "name": "byuld",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n \"api,vite\" -c \"magenta,cyan\" \"node api/server.js\" \"vite\"",
+    "dev:ui": "vite",
+    "dev:api": "node api/server.js",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.97.1",
+    "@monaco-editor/react": "^4.7.0",
+    "@moonpay/moonpay-react": "^1.10.6",
+    "@privy-io/react-auth": "^3.28.0",
+    "@stripe/react-stripe-js": "^6.5.0",
+    "@stripe/stripe-js": "^9.7.0",
+    "concurrently": "^9.2.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.23.1",
+    "stripe": "^22.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.3",
+    "vite": "^5.2.11"
+  }
+}

@@ -48,15 +48,11 @@ export default function TokenExhaustion() {
   const handleChoose = async (id: string) => {
     setChosen(id);
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1400));
+    await new Promise(r => setTimeout(r, 800));
     setLoading(false);
-    if (id === "wait") {
-      navigate("/build");
-    } else {
-      // Mock purchase — reset tokens
-      dispatch({ type: "ADD_TOKENS", count: id === "subscribe" ? -state.tokensUsed + 500 : 50 });
-      navigate("/build");
-    }
+    // All paths reset tokens and go back to build — no dead ends
+    dispatch({ type: "RESET_TOKENS" });
+    navigate("/build");
   };
 
   return (

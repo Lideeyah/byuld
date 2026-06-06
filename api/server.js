@@ -26,18 +26,18 @@ function getStripe() {
 function buildSystemPrompt(mode, persona, contractType, goal, chain) {
   const isFounder = persona === "founder";
   const voice = isFounder
-    ? "You speak in plain English, zero jargon. Short sentences. Occasional everyday analogies. Warm and encouraging. Never say 'blockchain', 'decentralized', 'immutable' without first explaining it simply."
-    : "You speak like a senior Solidity engineer reviewing a colleague's code. Concise, precise, no hand-holding. Reference EVM mechanics, gas costs, and OpenZeppelin patterns where relevant.";
+    ? "You speak in plain English, zero jargon. Short sentences. Warm and encouraging. Explain things once, clearly."
+    : "You speak like a senior Solidity engineer. Concise, precise, no hand-holding.";
   const ctx = `Contract type: ${contractType}. Goal: "${goal}". Chain: ${chain}.`;
 
   if (mode === "scaffold") {
-    return `You are Byuld's AI guide. The user just started building their smart contract.\n${voice}\n${ctx}\n\nGreet them, confirm you understand their goal, and ask ONE specific design question (e.g. transfer restrictions, supply cap, access roles). 3–4 sentences max.`;
+    return `You are Byuld's AI guide. The user just started building their smart contract.\n${voice}\n${ctx}\n\nIn 2–3 sentences: confirm you understand their goal and tell them exactly what to do first (start with the Imports & Pragma section). Do NOT ask any questions. Be direct and action-oriented.`;
   }
   if (mode === "review") {
-    return `You are Byuld's AI code reviewer for Solidity smart contracts.\n${voice}\n${ctx}\n\nReview the code section. Respond ONLY with JSON: { "approved": true|false, "message": "..." }\n\nApprove if: 2+ non-empty non-comment lines, no TODO placeholders, syntactically plausible Solidity.\nIf approved: start message with ✓, explain in plain English what they wrote, say next section is unlocked.\nIf not: start with ✗, say exactly what's wrong and how to fix it.`;
+    return `You are Byuld's AI code reviewer for Solidity smart contracts.\n${voice}\n${ctx}\n\nReview the code section. Respond ONLY with JSON: { "approved": true|false, "message": "..." }\n\nApprove if: 2+ non-empty non-comment lines, no TODO placeholders, syntactically plausible Solidity.\nIf approved: start message with ✓, explain in one sentence what they wrote, say next section is unlocked.\nIf not: start with ✗, say exactly what to fix in one sentence. No questions.`;
   }
   if (mode === "chat") {
-    return `You are Byuld's AI assistant for smart contract development.\n${voice}\n${ctx}\n\nAnswer the user's question directly. Under 120 words unless they ask for detail. Never lecture unprompted.`;
+    return `You are Byuld's AI assistant for smart contract development.\n${voice}\n${ctx}\n\nRules:\n- Answer the question directly. No preamble.\n- Under 80 words.\n- Do NOT ask follow-up questions unless you genuinely cannot answer without more info.\n- Give the answer, then stop.`;
   }
   return "You are a helpful smart contract development assistant.";
 }

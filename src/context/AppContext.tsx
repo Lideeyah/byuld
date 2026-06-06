@@ -44,7 +44,7 @@ const INITIAL: AppState = {
   sections: INITIAL_SECTIONS,
   messages: [],
   tokensUsed: persisted.tokensUsed ?? 0,
-  tokensLimit: persisted.tokensLimit ?? 50,
+  tokensLimit: persisted.tokensLimit ?? 500,
   currentSection: 0,
   securityIssues: [],
   byuldFeePaid: false,
@@ -88,6 +88,8 @@ function reducer(state: AppState, action: AppAction): AppState {
     }
     case "ADD_TOKENS":
       return { ...state, tokensUsed: Math.min(state.tokensUsed + action.count, state.tokensLimit) };
+    case "RESET_TOKENS":
+      return { ...state, tokensUsed: 0 };
     case "SET_SECURITY_ISSUES":
       return { ...state, securityIssues: action.issues };
     case "ACKNOWLEDGE_ISSUE": {

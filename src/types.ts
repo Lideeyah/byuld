@@ -62,6 +62,7 @@ export type AppAction =
   | { type: "UPDATE_SECTION_CODE"; id: string; code: string }
   | { type: "COMPLETE_SECTION"; id: string }
   | { type: "ADD_TOKENS"; count: number }
+  | { type: "RESET_TOKENS" }
   | { type: "SET_SECURITY_ISSUES"; issues: SecurityIssue[] }
   | { type: "ACKNOWLEDGE_ISSUE"; id: string }
   | { type: "SET_BYULD_FEE_PAID" }

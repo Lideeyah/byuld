@@ -13,8 +13,12 @@ app.use(cors({ origin: process.env.ALLOWED_ORIGIN ?? "*" }));
 app.use("/api/moonpay-webhook", express.raw({ type: "*/*" }));
 app.use(express.json());
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const stripe    = new Stripe(process.env.STRIPE_SECRET_KEY ?? "");
+// Lazy init — never crash on startup if a key is missing
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? "" });
+function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) throw new Error("STRIPE_SECRET_KEY not set");
+  return new Stripe(process.env.STRIPE_SECRET_KEY);
+}
 
 // ─── System prompts ────────────────────────────────────────────────────────────
 
@@ -122,7 +126,7 @@ app.post("/api/ai/stream", async (req, res) => {
 
 app.post("/api/create-payment-intent", async (_req, res) => {
   try {
-    const intent = await stripe.paymentIntents.create({
+    const intent = await getStripe().paymentIntents.create({
       amount: 600,
       currency: "usd",
       description: "Byuld security review fee",

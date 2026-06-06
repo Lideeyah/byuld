@@ -8,7 +8,6 @@ import { AppProvider } from "./context/AppContext";
 import App from "./App";
 import "./index.css";
 
-// Catches any crash and shows the error on screen instead of blank page
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: string }> {
   state = { error: "" };
   static getDerivedStateFromError(e: Error) { return { error: e.message }; }
@@ -17,8 +16,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string }
       return (
         <div style={{ minHeight: "100vh", background: "#080E1D", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px" }}>
           <div style={{ maxWidth: "560px", color: "#fff", fontFamily: "monospace" }}>
-            <div style={{ color: "#f87171", marginBottom: "12px", fontSize: "14px" }}>⚠ Startup error</div>
-            <pre style={{ fontSize: "12px", color: "#94a3b8", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{this.state.error}</pre>
+            <div style={{ color: "#f87171", marginBottom: "12px", fontSize: "14px" }}>⚠ {this.state.error}</div>
           </div>
         </div>
       );
@@ -27,11 +25,13 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string }
   }
 }
 
+const privyAppId = (import.meta.env.VITE_PRIVY_APP_ID ?? "").trim();
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
       <PrivyProvider
-        appId={import.meta.env.VITE_PRIVY_APP_ID ?? ""}
+        appId={privyAppId}
         config={{
           loginMethods: ["email", "wallet"],
           embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
@@ -42,7 +42,7 @@ createRoot(document.getElementById("root")!).render(
         }}
       >
         <ErrorBoundary>
-          <MoonPayProvider apiKey={import.meta.env.VITE_MOONPAY_PK ?? ""}>
+          <MoonPayProvider apiKey={(import.meta.env.VITE_MOONPAY_PK ?? "").trim()}>
             <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <AppProvider>
                 <App />

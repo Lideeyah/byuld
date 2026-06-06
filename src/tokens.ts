@@ -18,7 +18,7 @@ export const C = {
 } as const;
 
 export const F = {
-  display: "'Syne', sans-serif",
+  display: "'Space Grotesk', sans-serif",
   body:    "'DM Sans', sans-serif",
   mono:    "'JetBrains Mono', monospace",
 } as const;

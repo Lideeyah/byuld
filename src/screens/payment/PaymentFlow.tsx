@@ -25,12 +25,13 @@ const VIEM_CHAINS: Record<string, Chain> = {
   ethereum: mainnet, polygon: polygon, sepolia: baseSepolia,
 };
 
+const ALCHEMY_KEY = import.meta.env.VITE_ALCHEMY_KEY ?? "";
 const PUBLIC_RPC: Record<string, string> = {
-  base: "https://mainnet.base.org",
-  "base-sepolia": "https://sepolia.base.org",
-  ethereum: "https://eth.drpc.org",
-  polygon: "https://polygon.drpc.org",
-  sepolia: "https://sepolia.base.org",
+  base:           `https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
+  "base-sepolia": `https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}`,
+  ethereum:       `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
+  polygon:        `https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
+  sepolia:        `https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}`,
 };
 
 const CHAIN_FEE: Record<string, number> = {

@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://RENDER_URL_HERE/api/:path*"
+      "destination": "https://byuld.onrender.com/api/:path*"
     }
   ]
 }

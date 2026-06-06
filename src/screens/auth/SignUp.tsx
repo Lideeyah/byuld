@@ -19,7 +19,10 @@ export default function SignUp() {
   const { connectWallet } = useConnectWallet({
     onSuccess({ wallet }) {
       dispatch({ type: "SET_AUTHENTICATED", walletAddress: wallet.address });
-      navigate("/onboarding/persona");
+      // Returning user → dashboard. New user → onboarding.
+      const hasOnboarded = !!localStorage.getItem("byuld_session") &&
+        JSON.parse(localStorage.getItem("byuld_session") || "{}").persona;
+      navigate(hasOnboarded ? "/dashboard" : "/onboarding/persona");
     },
     onError(err) { setError(String(err)); },
   });

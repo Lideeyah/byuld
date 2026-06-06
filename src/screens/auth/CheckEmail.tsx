@@ -11,7 +11,8 @@ export default function CheckEmail() {
   const { state } = useApp();
   const { loginWithCode, sendCode } = useLoginWithEmail({
     onComplete() {
-      navigate("/onboarding/persona");
+      // Returning user → dashboard. New user → onboarding.
+      navigate(state.persona ? "/dashboard" : "/onboarding/persona");
     },
     onError(err) {
       setError(typeof err === "string" ? err : "Invalid code. Please try again.");

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useApp } from "./context/AppContext";
 
@@ -24,6 +24,8 @@ function PrivyAuthSync() {
   const { ready, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
   const { state, dispatch } = useApp();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (!ready || !authenticated) return;
@@ -37,6 +39,12 @@ function PrivyAuthSync() {
     );
     if (emailAccount && !state.email) {
       dispatch({ type: "SET_EMAIL", email: emailAccount.address });
+    }
+
+    // Only redirect from auth screens — don't redirect if already in the app
+    const onAuthScreen = ["/auth", "/check-email"].includes(location.pathname);
+    if (onAuthScreen) {
+      navigate(state.persona ? "/dashboard" : "/onboarding/persona", { replace: true });
     }
   }, [ready, authenticated, wallets, user]);
 

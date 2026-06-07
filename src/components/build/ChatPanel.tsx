@@ -8,7 +8,43 @@ import type { Message } from "../../types";
 interface Props {
   onSend?: (msg: string) => Promise<void>;
   loading?: boolean;
-  streamingContent?: string; // partial AI text being streamed in real-time
+  streamingContent?: string;
+}
+
+// Simple markdown renderer — handles bold, italic, inline code, headings, line breaks
+function Markdown({ text }: { text: string }) {
+  const lines = text.split("\n");
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      {lines.map((line, i) => {
+        if (!line.trim()) return <div key={i} style={{ height: "4px" }} />;
+
+        // Heading
+        if (line.startsWith("# "))  return <div key={i} style={{ fontWeight: 700, fontSize: "14px", color: C.white, fontFamily: F.body, marginTop: "4px" }}>{parseInline(line.slice(2))}</div>;
+        if (line.startsWith("## ")) return <div key={i} style={{ fontWeight: 700, fontSize: "13px", color: C.white, fontFamily: F.body, marginTop: "2px" }}>{parseInline(line.slice(3))}</div>;
+
+        return <div key={i} style={{ fontFamily: F.body, fontSize: "13px", lineHeight: 1.6, color: C.textSec }}>{parseInline(line)}</div>;
+      })}
+    </div>
+  );
+}
+
+function parseInline(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  // Regex to match **bold**, *italic*, `code`
+  const regex = /\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    if (match[1]) parts.push(<strong key={match.index} style={{ color: C.white, fontWeight: 600 }}>{match[1]}</strong>);
+    else if (match[2]) parts.push(<em key={match.index} style={{ color: C.textSec }}>{match[2]}</em>);
+    else if (match[3]) parts.push(<code key={match.index} style={{ fontFamily: F.mono, fontSize: "12px", color: C.mint, background: `${C.mint}12`, padding: "1px 5px", borderRadius: "3px" }}>{match[3]}</code>);
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
 }
 
 export default function ChatPanel({ onSend, loading, streamingContent }: Props) {
@@ -28,10 +64,7 @@ export default function ChatPanel({ onSend, loading, streamingContent }: Props) 
   };
 
   const handleKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
   return (
@@ -48,34 +81,31 @@ export default function ChatPanel({ onSend, loading, streamingContent }: Props) 
 
         {state.messages.map((msg: Message, i) => (
           <ChatBubble key={i} role={msg.role} animate={false}>
-            <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span>
+            {msg.role === "byuld"
+              ? <Markdown text={msg.content} />
+              : <span style={{ whiteSpace: "pre-wrap", fontFamily: F.body, fontSize: "13px", color: C.textSec }}>{msg.content}</span>
+            }
           </ChatBubble>
         ))}
 
-        {/* Streaming bubble — shown while Claude is generating */}
+        {/* Streaming bubble */}
         {streamingContent && (
           <ChatBubble role="byuld" animate={false}>
-            <span style={{ whiteSpace: "pre-wrap" }}>{streamingContent}</span>
+            <Markdown text={streamingContent} />
             <span style={{
-              display: "inline-block",
-              width: "2px",
-              height: "13px",
-              background: C.purple,
-              marginLeft: "2px",
-              verticalAlign: "text-bottom",
+              display: "inline-block", width: "2px", height: "13px",
+              background: C.purple, marginLeft: "2px", verticalAlign: "text-bottom",
               animation: "blink 0.8s step-end infinite",
             }} />
           </ChatBubble>
         )}
 
-        {/* Thinking indicator — only shown when loading but no streaming content yet */}
         {loading && !streamingContent && (
           <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "4px 0 4px 4px" }}>
             <Spinner size={14} />
             <span style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>Byuld is thinking…</span>
           </div>
         )}
-
         <div ref={bottomRef} />
       </div>
 

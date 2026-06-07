@@ -43,8 +43,9 @@ const INITIAL: AppState = {
   mode: "C",
   sections: INITIAL_SECTIONS,
   messages: [],
-  tokensUsed: persisted.tokensUsed ?? 0,
-  tokensLimit: persisted.tokensLimit ?? 500,
+  // Always enforce the current limit — upgrades old sessions automatically
+  tokensLimit: Math.max(persisted.tokensLimit ?? 500, 500),
+  tokensUsed: Math.min(persisted.tokensUsed ?? 0, 500),
   currentSection: 0,
   securityIssues: [],
   byuldFeePaid: false,

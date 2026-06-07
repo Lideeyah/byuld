@@ -19,12 +19,15 @@ export default function EditorPanel({ onCodeChange }: Props) {
     onCodeChange?.(code);
   };
 
-  // Build full view of contract from all sections
-  const fullCode = state.sections.map(s => {
-    if (s.status === "complete") return s.code;
-    if (s.status === "active") return s.code || `// TODO: ${s.title}\n`;
-    return `// [Locked] ${s.title}`;
-  }).join("\n\n");
+  // Only show sections the user has unlocked — no "// [Locked]" clutter
+  const fullCode = state.sections
+    .filter(s => s.status !== "locked")
+    .map(s => {
+      if (s.status === "complete") return s.code;
+      // Active section — show scaffold or empty with a single helpful comment
+      return s.code || `// ${s.title}\n// Write your code here\n`;
+    })
+    .join("\n\n");
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, position: "relative" }}>

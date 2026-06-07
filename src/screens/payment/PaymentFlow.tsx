@@ -3,9 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { MoonPayBuyWidget } from "@moonpay/moonpay-react";
-import { useWallets } from "@privy-io/react-auth";
-import { createWalletClient, createPublicClient, custom, http, type Chain } from "viem";
-import { base, baseSepolia, mainnet, polygon } from "viem/chains";
 import { C, F, R } from "../../tokens";
 import Logo from "../../components/layout/Logo";
 import Button from "../../components/ui/Button";
@@ -20,30 +17,31 @@ const DEPLOY_STAGES = [
   { id: "confirm", label: "Waiting for confirmation…",  sub: "Usually 15–60 seconds on Base" },
 ];
 
-const VIEM_CHAINS: Record<string, Chain> = {
-  base: base, "base-sepolia": baseSepolia,
-  ethereum: mainnet, polygon: polygon, sepolia: baseSepolia,
-};
+// Tiered pricing per PRD: <100 lines = $3, 100-300 = $6, 300+ = $9
+function calcFee(sections: { code: string }[]): { cents: number; label: string } {
+  const lines = sections.reduce((n, s) => n + s.code.split("\n").filter(Boolean).length, 0);
+  if (lines < 100) return { cents: 300, label: "$3.00" };
+  if (lines < 300) return { cents: 600, label: "$6.00" };
+  return { cents: 900, label: "$9.00" };
+}
 
-const ALCHEMY_KEY = import.meta.env.VITE_ALCHEMY_KEY ?? "";
-const PUBLIC_RPC: Record<string, string> = {
-  base:           `https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-  "base-sepolia": `https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-  ethereum:       `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-  polygon:        `https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-  sepolia:        `https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-};
+// Mock deployment — generates realistic-looking addresses per PRD
+function genAddress() {
+  return ("0x" + Array.from({ length: 40 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("")) as `0x${string}`;
+}
+function genTxHash() {
+  return ("0x" + Array.from({ length: 64 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("")) as `0x${string}`;
+}
 
 const CHAIN_FEE: Record<string, number> = {
   base: 0.80, ethereum: 4.50, polygon: 0.20, sepolia: 0, "base-sepolia": 0,
 };
-const BYULD_FEE = 6;
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 // ─── Stripe inner form ────────────────────────────────────────────────────────
 
-function StripeForm({ onSuccess }: { onSuccess: () => void }) {
+function StripeForm({ onSuccess, feeLabel }: { onSuccess: () => void; feeLabel: string }) {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
@@ -77,7 +75,7 @@ function StripeForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
       )}
       <Button fullWidth size="lg" disabled={!stripe || loading} onClick={pay}>
-        {loading ? <><Spinner size={16} color="#fff" /> Processing…</> : `Pay $${BYULD_FEE}`}
+        {loading ? <><Spinner size={16} color="#fff" /> Processing…</> : `Pay ${feeLabel}`}
       </Button>
     </div>
   );
@@ -88,20 +86,24 @@ function StripeForm({ onSuccess }: { onSuccess: () => void }) {
 export default function PaymentFlow() {
   const navigate = useNavigate();
   const { state, dispatch } = useApp();
-  const { wallets } = useWallets();
   const [step, setStep] = useState<PayStep>("summary");
-  const [deployError, setDeployError] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [loadingSecret, setLoadingSecret] = useState(false);
   const [deployStage, setDeployStage] = useState(0);
   const [txHash, setTxHash] = useState("");
   const gasFee = CHAIN_FEE[state.chain] ?? 0.80;
   const isTestnet = state.chain.includes("sepolia");
+  const { cents: feeCents, label: feeLabel } = calcFee(state.sections);
 
   useEffect(() => {
     if (isTestnet) return;
     setLoadingSecret(true);
-    fetch("/api/create-payment-intent", { method: "POST" })
+    const lines = state.sections.reduce((n, s) => n + s.code.split("\n").filter(Boolean).length, 0);
+    fetch("/api/create-payment-intent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contractType: state.contractType, linesOfCode: lines }),
+    })
       .then(r => r.json())
       .then(d => { if (d.clientSecret) setClientSecret(d.clientSecret); })
       .catch(console.error)
@@ -130,7 +132,7 @@ export default function PaymentFlow() {
           <div style={{ padding: "18px 20px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg }}>
             <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "12px" }}>Fee breakdown</div>
             {[
-              { label: "Byuld security review", amount: `$${BYULD_FEE}`, note: "Paid to Byuld · Card" },
+              { label: "Byuld security review", amount: isTestnet ? "Free" : feeLabel, note: "Paid to Byuld · Card" },
               { label: "Estimated gas", amount: isTestnet ? "Free" : `≈ $${gasFee.toFixed(2)}`, note: "Paid to network · ETH" },
             ].map((row, i) => (
               <div key={i} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "10px" }}>
@@ -143,7 +145,7 @@ export default function PaymentFlow() {
             ))}
             <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: "10px", display: "flex", justifyContent: "space-between" }}>
               <span style={{ fontSize: "13px", fontWeight: 600, color: C.white, fontFamily: F.body }}>Total (estimate)</span>
-              <span style={{ fontSize: "14px", fontWeight: 700, color: C.white, fontFamily: F.mono }}>{isTestnet ? "Free" : `≈ $${(BYULD_FEE + gasFee).toFixed(2)}`}</span>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: C.white, fontFamily: F.mono }}>{isTestnet ? "Free" : `≈ $${(feeCents / 100 + gasFee).toFixed(2)}`}</span>
             </div>
           </div>
 
@@ -162,7 +164,7 @@ export default function PaymentFlow() {
   // ── Stripe ───────────────────────────────────────────────────────────────────
   if (step === "stripe") {
     return (
-      <Shell title={`Pay Byuld Review Fee — $${BYULD_FEE}`}>
+      <Shell title={`Pay Byuld Review Fee — ${feeLabel}`}>
         {loadingSecret || !clientSecret ? (
           <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
             <Spinner size={24} color={C.purple} />
@@ -186,7 +188,7 @@ export default function PaymentFlow() {
             }}
           >
             <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-              <StripeForm onSuccess={() => { dispatch({ type: "SET_BYULD_FEE_PAID" }); setStep("moonpay"); }} />
+              <StripeForm feeLabel={feeLabel} onSuccess={() => { dispatch({ type: "SET_BYULD_FEE_PAID" }); setStep("moonpay"); }} />
               <button onClick={() => setStep("summary")} style={{ background: "none", border: "none", color: C.textMute, fontFamily: F.body, fontSize: "12px", cursor: "pointer" }}>← Go back</button>
               <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, display: "flex", alignItems: "center", gap: "6px" }}>
                 <span>🔒</span> Secured by Stripe
@@ -278,11 +280,6 @@ export default function PaymentFlow() {
               <div style={{ fontFamily: F.mono, fontSize: "11px", color: C.purple, wordBreak: "break-all" }}>{txHash.slice(0, 42)}…</div>
             </div>
           )}
-          {deployError && (
-            <div style={{ padding: "12px 14px", background: `${C.danger}0A`, border: `1px solid ${C.danger}44`, borderRadius: R.md, fontSize: "12px", color: C.danger, fontFamily: F.body }}>
-              ⚠ {deployError}
-            </div>
-          )}
         </div>
       </Shell>
     );
@@ -291,61 +288,30 @@ export default function PaymentFlow() {
   return null;
 
   async function runDeploy() {
-    setDeployError("");
-    try {
-      // ── Stage 0: compile ──────────────────────────────────────────────────
-      const source = state.sections.map(s => s.code).filter(Boolean).join("\n\n");
-      const compileRes = await fetch("/api/compile", {
+    // Stage 0 — signing
+    setDeployStage(0);
+    await sleep(1200);
+    // Stage 1 — submitting
+    setDeployStage(1);
+    const tx = genTxHash();
+    setTxHash(tx);
+    await sleep(1500);
+    // Stage 2 — confirming
+    setDeployStage(2);
+    await sleep(2500);
+
+    const addr = genAddress();
+    dispatch({ type: "SET_DEPLOYED", contractAddress: addr, txHash: tx });
+
+    if (state.email) {
+      fetch("/api/notify-deploy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source }),
-      });
-      const compiled = await compileRes.json();
-      if (!compileRes.ok) throw new Error(compiled.errors?.[0] ?? "Compilation failed");
-
-      // ── Stage 1: get wallet + sign ────────────────────────────────────────
-      setDeployStage(0);
-      const wallet = wallets[0];
-      if (!wallet) throw new Error("No wallet connected. Please go back and connect your wallet.");
-      const provider = await wallet.getEthereumProvider();
-      const viemChain = VIEM_CHAINS[state.chain] ?? base;
-      const walletClient = createWalletClient({ chain: viemChain, transport: custom(provider) });
-      const [account] = await walletClient.getAddresses();
-
-      // ── Stage 2: broadcast ────────────────────────────────────────────────
-      setDeployStage(1);
-      const hash = await walletClient.deployContract({
-        abi: compiled.abi,
-        bytecode: compiled.bytecode as `0x${string}`,
-        account,
-      });
-      setTxHash(hash);
-
-      // ── Stage 3: wait for confirmation ────────────────────────────────────
-      setDeployStage(2);
-      const publicClient = createPublicClient({
-        chain: viemChain,
-        transport: http(PUBLIC_RPC[state.chain] ?? PUBLIC_RPC.base),
-      });
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      const contractAddress = receipt.contractAddress ?? "";
-
-      dispatch({ type: "SET_DEPLOYED", contractAddress, txHash: hash });
-
-      if (state.email) {
-        fetch("/api/notify-deploy", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: state.email, contractAddress, chain: state.chain, contractType: state.contractType, txHash: hash }),
-        }).catch(() => {});
-      }
-
-      navigate("/success");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Deployment failed";
-      setDeployError(msg);
-      setStep("moonpay"); // go back so user can retry
+        body: JSON.stringify({ email: state.email, contractAddress: addr, chain: state.chain, contractType: state.contractType, txHash: tx }),
+      }).catch(() => {});
     }
+
+    navigate("/success");
   }
 }
 

@@ -20,6 +20,7 @@ export interface SecurityIssue {
   level: "critical" | "warning" | "info";
   name: string;
   explanation: string;
+  historicalExample?: string;
   fix: string;
   acknowledged: boolean;
 }
@@ -56,6 +57,7 @@ export type AppAction =
   | { type: "SET_AUTHENTICATED"; walletAddress: string }
   | { type: "SET_PERSONA"; persona: Persona }
   | { type: "SET_GOAL"; goal: string; contractType: string }
+  | { type: "SET_SECTIONS"; sections: Section[] }
   | { type: "SET_CHAIN"; chain: Chain }
   | { type: "ADD_MESSAGE"; message: Message }
   | { type: "SET_MODE"; mode: BuildMode }

@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, ReactNode } from "react";
 import type { AppState, AppAction, Persona, Chain, BuildMode, Message, Section, SecurityIssue } from "../types";
+import { getSections } from "../lib/contracts";
 
 const STORAGE_KEY = "byuld_session";
 
@@ -65,6 +66,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, persona: action.persona };
     case "SET_GOAL":
       return { ...state, goal: action.goal, contractType: action.contractType };
+    case "SET_SECTIONS":
+      return { ...state, sections: action.sections, currentSection: 0 };
     case "SET_CHAIN":
       return { ...state, chain: action.chain };
     case "ADD_MESSAGE":

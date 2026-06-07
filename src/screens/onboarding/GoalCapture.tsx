@@ -6,7 +6,8 @@ import Button from "../../components/ui/Button";
 import Textarea from "../../components/ui/Textarea";
 import { useApp } from "../../context/AppContext";
 import ProgressStep from "../../components/ui/ProgressStep";
-import type { Chain } from "../../types";
+import { getSections } from "../../lib/contracts";
+import type { Chain, Section } from "../../types";
 import Spinner from "../../components/ui/Spinner";
 
 const EXAMPLES = [
@@ -48,16 +49,51 @@ export default function GoalCapture() {
   const handleContinue = async () => {
     if (!canContinue || loading) return;
     setLoading(true);
-    const contractType = detectContractType(goal);
-    await new Promise(r => setTimeout(r, 1500));
-    dispatch({ type: "SET_GOAL", goal: goal.trim(), contractType });
-    dispatch({ type: "SET_CHAIN", chain });
-    setLoading(false);
-    if (!contractType) {
-      navigate("/onboarding/clarify");
-    } else {
+    try {
+      // Call real classify endpoint
+      const res = await fetch("/api/classify-goal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goal: goal.trim(), persona: state.persona ?? "founder" }),
+      });
+      const data = res.ok ? await res.json() : null;
+      const contractType = data?.contractType ?? "ERC721";
+      const needsClarification = data?.needsClarification ?? false;
+
+      dispatch({ type: "SET_GOAL", goal: goal.trim(), contractType });
+      dispatch({ type: "SET_CHAIN", chain });
+
+      // Load the correct sections for this contract type
+      const sectionDefs = getSections(contractType as any);
+      const sections: Section[] = sectionDefs.map((def, i) => ({
+        id: def.id,
+        title: def.title,
+        status: i === 0 ? "active" : "locked",
+        code: "",
+      }));
+      dispatch({ type: "SET_SECTIONS", sections });
+
+      if (needsClarification && data?.clarificationQuestion) {
+        // Store clarification data for the clarify screen
+        sessionStorage.setItem("byuld_clarify", JSON.stringify({
+          question: data.clarificationQuestion,
+          options: data.clarificationOptions,
+        }));
+        navigate("/onboarding/clarify");
+      } else {
+        navigate("/build");
+      }
+    } catch {
+      // Fallback: default to ERC721
+      dispatch({ type: "SET_GOAL", goal: goal.trim(), contractType: "ERC721" });
+      dispatch({ type: "SET_CHAIN", chain });
+      const sections: Section[] = getSections("ERC721").map((def, i) => ({
+        id: def.id, title: def.title, status: i === 0 ? "active" : "locked", code: "",
+      }));
+      dispatch({ type: "SET_SECTIONS", sections });
       navigate("/build");
     }
+    setLoading(false);
   };
 
   return (

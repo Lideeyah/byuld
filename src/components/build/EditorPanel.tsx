@@ -4,10 +4,10 @@ import MonacoEditor from "@monaco-editor/react";
 
 interface Props {
   onCodeChange?: (code: string) => void;
-  onLineHover?: (line: number) => void;
+  onLineClick?: (line: string, lineNumber: number) => void;
 }
 
-export default function EditorPanel({ onCodeChange }: Props) {
+export default function EditorPanel({ onCodeChange, onLineClick }: Props) {
   const { state, dispatch } = useApp();
   const currentSec = state.sections[state.currentSection];
 
@@ -68,6 +68,16 @@ export default function EditorPanel({ onCodeChange }: Props) {
           theme="vs-dark"
           value={fullCode}
           onChange={handleChange}
+          onMount={(editor) => {
+            // Mode A: click a line to get an explanation
+            editor.onMouseDown((e) => {
+              if (e.target.position && onLineClick) {
+                const lineNumber = e.target.position.lineNumber;
+                const lineContent = editor.getModel()?.getLineContent(lineNumber) ?? "";
+                if (lineContent.trim()) onLineClick(lineContent, lineNumber);
+              }
+            });
+          }}
           options={{
             fontSize: 13,
             fontFamily: "'JetBrains Mono', monospace",

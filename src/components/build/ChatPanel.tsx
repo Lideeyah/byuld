@@ -9,6 +9,7 @@ interface Props {
   onSend?: (msg: string) => Promise<void>;
   loading?: boolean;
   streamingContent?: string;
+  decisionSlot?: React.ReactNode;
 }
 
 // Simple markdown renderer — handles bold, italic, inline code, headings, line breaks
@@ -47,7 +48,7 @@ function parseInline(text: string): React.ReactNode[] {
   return parts;
 }
 
-export default function ChatPanel({ onSend, loading, streamingContent }: Props) {
+export default function ChatPanel({ onSend, loading, streamingContent, decisionSlot }: Props) {
   const { state } = useApp();
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -106,6 +107,11 @@ export default function ChatPanel({ onSend, loading, streamingContent }: Props) 
             <span style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>Byuld is thinking…</span>
           </div>
         )}
+        {/* Decision cards injected by BuildInterface */}
+        {decisionSlot && (
+          <div style={{ padding: "0 0 12px" }}>{decisionSlot}</div>
+        )}
+
         <div ref={bottomRef} />
       </div>
 

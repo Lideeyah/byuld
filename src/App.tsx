@@ -18,6 +18,7 @@ import ConsentPart2     from "./screens/consent/ConsentPart2";
 import PaymentFlow      from "./screens/payment/PaymentFlow";
 import Success          from "./screens/Success";
 import Dashboard        from "./screens/Dashboard";
+import Admin            from "./screens/Admin";
 
 // Keeps Privy auth state in sync with AppContext
 function PrivyAuthSync() {
@@ -85,6 +86,7 @@ export default function App() {
         <Route path="/success"            element={<AuthGuard><Success /></AuthGuard>} />
         <Route path="/dashboard"          element={<AuthGuard><Dashboard /></AuthGuard>} />
 
+        <Route path="/admin"              element={<Admin />} />
         <Route path="*"                   element={<Navigate to="/" replace />} />
       </Routes>
     </>

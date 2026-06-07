@@ -383,17 +383,169 @@ function ReviewIndicator({ state }: { state: "idle" | "reviewing" | "approved" |
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
 function buildScaffold(contractType: string, goal: string): Record<string, string> {
-  const isERC721 = contractType === "ERC-721";
-  const isERC20  = contractType === "ERC-20";
-  const name = goal.split(" ").slice(-2).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join("");
+  const isERC20 = contractType === "ERC-20";
+  // Derive a clean PascalCase contract name from the goal
+  const name = goal
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join("")
+    .replace(/[^a-zA-Z0-9]/g, "") || "MyContract";
 
+  if (isERC20) {
+    return {
+      imports: `// SPDX-License-Identifier: MIT
+// ↑ Required header. MIT means anyone can read and use your code.
+
+pragma solidity ^0.8.19;
+// ↑ Minimum Solidity compiler version. 0.8+ has overflow protection built in.
+
+// OpenZeppelin is a library of secure, battle-tested contract code.
+// We import it so we don't have to write standard token logic from scratch.
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+// ↑ Gives us the full ERC-20 token standard — transfers, balances, allowances.
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+// ↑ Adds an "owner" role. Only you (the deployer) can call protected functions.`,
+
+      contract: `contract ${name} is ERC20, Ownable {
+// ↑ "is ERC20" — your contract inherits every ERC-20 feature automatically.
+// ↑ "is Ownable" — adds owner-only protection to sensitive functions.
+
+    // MAX_SUPPLY is the hard cap. No one can ever create more than this.
+    uint256 public constant MAX_SUPPLY = 1_000_000 * 10 ** 18;
+    // ↑ 10**18 because Solidity doesn't use decimals — 1 token = 10^18 units.
+
+    // The constructor runs ONCE when you deploy. It sets the token name and symbol.
+    constructor() ERC20("${name}", "${name.slice(0, 4).toUpperCase()}") Ownable(msg.sender) {
+        // Mint the initial supply to whoever deploys the contract (you).
+        _mint(msg.sender, 100_000 * 10 ** 18);
+    }
+}`,
+
+      state: `    // Controls whether transfers are allowed. Useful for emergency situations.
+    bool public paused = false;
+
+    // Emitted as a log every time tokens are minted. Useful for tracking.
+    event TokensMinted(address indexed to, uint256 amount);`,
+
+      functions: `    // Only the owner can mint new tokens — up to the MAX_SUPPLY cap.
+    function mint(address to, uint256 amount) external onlyOwner {
+        require(totalSupply() + amount <= MAX_SUPPLY, "Would exceed max supply");
+        _mint(to, amount);
+        emit TokensMinted(to, amount);
+        // ↑ emit writes a log to the blockchain — cheaper than storage, good for tracking.
+    }
+
+    // Anyone can burn (permanently destroy) their own tokens.
+    function burn(uint256 amount) external {
+        _burn(msg.sender, amount);
+        // ↑ _burn removes tokens from circulation. Cannot be undone.
+    }`,
+
+      security: `    // Owner can pause all transfers in an emergency (e.g. if a bug is found).
+    function setPaused(bool _paused) external onlyOwner {
+        paused = _paused;
+    }
+
+    // This hook runs before every transfer. We use it to enforce the pause.
+    function _update(address from, address to, uint256 value) internal override {
+        require(!paused || from == address(0), "Transfers are paused");
+        // ↑ from == address(0) means it's a mint — we still allow minting when paused.
+        super._update(from, to, value);
+    }`,
+    };
+  }
+
+  // Default: ERC-721 NFT
   return {
-    imports: `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.19;\n\n// Byuld: These are the base contracts we're building on top of\n// TODO: Add your imports here\n`,
-    contract: isERC721
-      ? `// Byuld: This is your contract declaration — think of it as the file header\n// TODO: Declare your contract and what it inherits\ncontract ${name} {\n    // TODO: Add your state variables in the next section\n}\n`
-      : `// TODO: Declare your ${contractType} contract\ncontract ${name} {\n}\n`,
-    state: `// Byuld: These variables are stored permanently on the blockchain\n// TODO: Add the state variables your contract needs\n// Example: uint256 private _tokenCount;\n`,
-    functions: `// Byuld: These are the actions your contract can perform\n// TODO: Write your core functions here\n`,
-    security: `// Byuld: These control who can call your contract functions\n// TODO: Add modifiers and access control\n// Example: modifier onlyOwner() { require(msg.sender == owner, "Not owner"); _; }\n`,
+    imports: `// SPDX-License-Identifier: MIT
+// ↑ Required header. MIT means anyone can read and use your code.
+
+pragma solidity ^0.8.19;
+// ↑ Minimum compiler version. 0.8+ has built-in overflow protection.
+
+// OpenZeppelin is a library of secure, audited contract code used by top projects.
+
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+// ↑ Gives us the full NFT standard + the ability to store metadata URLs per token.
+
+import "@openzeppelin/contracts/utils/Counters.sol";
+// ↑ A safe counter for token IDs — prevents ID collisions and overflow.
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+// ↑ Adds an "owner" — only you can call protected admin functions.`,
+
+    contract: `contract ${name} is ERC721URIStorage, Ownable {
+// ↑ "is ERC721URIStorage" — inherits the full NFT standard automatically.
+// ↑ "is Ownable" — gives you exclusive access to owner-only functions.
+
+    using Counters for Counters.Counter;
+    // ↑ Tells Solidity to use Counters methods on any Counter type variable.
+
+    Counters.Counter private _tokenIds;
+    // ↑ Tracks the current token ID. Starts at 0 and only ever goes up.
+
+    // Constructor runs ONCE at deployment. Sets the collection name and symbol.
+    constructor() ERC721("${name}", "${name.slice(0, 4).toUpperCase()}") Ownable(msg.sender) {}
+    // ↑ msg.sender is whoever deploys the contract — that's you. You become the owner.
+}`,
+
+    state: `    // The price to mint one token. 0.01 ether = 10,000,000,000,000,000 wei.
+    uint256 public mintPrice = 0.01 ether;
+
+    // Maximum tokens that can ever exist. Once reached, minting is permanently closed.
+    uint256 public constant MAX_SUPPLY = 1000;
+
+    // Base URL for token metadata (images, names, attributes).
+    // Example: "ipfs://QmYourHash/" — token 1 resolves to that URL + "1.json"
+    string private _baseTokenURI;`,
+
+    functions: `    // Anyone can call this to mint a new NFT — they must pay mintPrice.
+    function mint(address to, string memory tokenURI) external payable {
+        require(msg.value >= mintPrice, "Not enough ETH sent");
+        // ↑ msg.value is the ETH sent with the transaction. Must be >= mintPrice.
+        require(_tokenIds.current() < MAX_SUPPLY, "All tokens have been minted");
+
+        _tokenIds.increment();
+        uint256 newTokenId = _tokenIds.current();
+
+        _safeMint(to, newTokenId);
+        // ↑ _safeMint handles ownership assignment and emits the Transfer event.
+
+        _setTokenURI(newTokenId, tokenURI);
+        // ↑ Links the token to its metadata URL (image, name, traits).
+    }
+
+    // Returns how many tokens have been minted so far.
+    function totalMinted() external view returns (uint256) {
+        return _tokenIds.current();
+    }
+
+    // Owner can withdraw all ETH collected from minting.
+    function withdraw() external onlyOwner {
+        payable(owner()).transfer(address(this).balance);
+        // ↑ Sends every wei in this contract to the owner's wallet.
+    }`,
+
+    security: `    // Only the owner can change the mint price.
+    function setMintPrice(uint256 newPrice) external onlyOwner {
+        mintPrice = newPrice;
+    }
+
+    // Only the owner can update where metadata is hosted.
+    function setBaseURI(string memory newURI) external onlyOwner {
+        _baseTokenURI = newURI;
+    }
+
+    // Returns the base URI — called internally by tokenURI().
+    function _baseURI() internal view override returns (string memory) {
+        return _baseTokenURI;
+    }
+
+    // Allows this contract to receive ETH directly (e.g. from minting payments).
+    receive() external payable {}`,
   };
 }

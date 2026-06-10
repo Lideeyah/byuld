@@ -16,6 +16,8 @@ import FinalReview      from "./screens/review/FinalReview";
 import ConsentPart1     from "./screens/consent/ConsentPart1";
 import ConsentPart2     from "./screens/consent/ConsentPart2";
 import PaymentFlow      from "./screens/payment/PaymentFlow";
+import Comprehension    from "./screens/Comprehension";
+import Deploy           from "./screens/Deploy";
 import Success          from "./screens/Success";
 import Dashboard        from "./screens/Dashboard";
 import Admin            from "./screens/Admin";
@@ -78,6 +80,8 @@ export default function App() {
         <Route path="/build/tokens"       element={<AuthGuard><TokenExhaustion /></AuthGuard>} />
 
         <Route path="/review"             element={<AuthGuard><FinalReview /></AuthGuard>} />
+        <Route path="/comprehension"      element={<AuthGuard><Comprehension /></AuthGuard>} />
+        <Route path="/deploy"             element={<AuthGuard><Deploy /></AuthGuard>} />
 
         <Route path="/consent/part1"      element={<AuthGuard><ConsentPart1 /></AuthGuard>} />
         <Route path="/consent/part2"      element={<AuthGuard><ConsentPart2 /></AuthGuard>} />

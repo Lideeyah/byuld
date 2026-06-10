@@ -11,16 +11,31 @@ import Logo from "../../components/layout/Logo";
 
 type ReviewPhase = "scanning-slither" | "scanning-ai" | "done";
 
-const MOCK_FINAL_ISSUES: SecurityIssue[] = [
-  {
-    id: "f-1",
-    level: "warning",
-    name: "Integer overflow possible in counter",
-    explanation: "Your token counter uses uint256 which can't realistically overflow, but best practice is to use OpenZeppelin's Counters library for clarity.",
-    fix: "import '@openzeppelin/contracts/utils/Counters.sol'; using Counters for Counters.Counter;",
-    acknowledged: false,
-  },
-];
+// Local static pattern check — instant, runs before the AI review.
+function patternCheck(code: string): SecurityIssue[] {
+  const issues: SecurityIssue[] = [];
+  if (code.includes(".call(") && !code.includes("nonReentrant")) {
+    issues.push({
+      id: "reentrancy-001", level: "critical", name: "Reentrancy Vulnerability",
+      explanation: "Your code sends ETH using .call() without reentrancy protection. An attacker can call this function again before it finishes, draining the contract.",
+      historicalExample: "The 2016 DAO hack used exactly this pattern to drain $60 million in ETH.",
+      fix: "Update state variables before making external calls (Checks-Effects-Interactions).",
+      acknowledged: false,
+    });
+  }
+  const hasTransfer = code.includes("transfer(");
+  const hasGuard = code.includes("onlyBuyer") || code.includes("onlyArbiter") || code.includes("onlyOwner");
+  if (hasTransfer && !hasGuard) {
+    issues.push({
+      id: "access-001", level: "critical", name: "Missing Access Control",
+      explanation: "A function that moves funds has no access control — anyone could call it.",
+      historicalExample: "Multiple contracts have been drained because payout functions had no caller checks.",
+      fix: "Add an access modifier (onlyBuyer / onlyArbiter) to any function that transfers funds.",
+      acknowledged: false,
+    });
+  }
+  return issues;
+}
 
 export default function FinalReview() {
   const navigate = useNavigate();
@@ -30,12 +45,42 @@ export default function FinalReview() {
 
   useEffect(() => {
     const run = async () => {
-      await sleep(2000);
+      const assembled = state.sections.map(s => s.code).filter(Boolean).join("\n\n");
+
+      // Phase 1 — local static pattern check
+      await sleep(1500);
+      const patternIssues = patternCheck(assembled);
       setPhase("scanning-ai");
-      await sleep(2000);
+
+      // Phase 2 — real Claude contextual review
+      let aiIssues: SecurityIssue[] = [];
+      try {
+        const res = await fetch("/api/security-review", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fullCode: assembled, goal: state.goal, persona: state.persona ?? "founder" }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          aiIssues = (data.issues ?? []).map((it: any, i: number) => ({
+            id: `ai-${i}`,
+            level: it.severity === "critical" ? "critical" : "warning",
+            name: it.title,
+            explanation: it.explanation,
+            historicalExample: it.historicalExample,
+            fix: it.fix,
+            acknowledged: false,
+          }));
+        }
+      } catch { /* fall back to pattern issues only */ }
+
+      // Merge + de-duplicate by name
+      const merged: SecurityIssue[] = [];
+      for (const it of [...patternIssues, ...aiIssues]) {
+        if (!merged.some(m => m.name.toLowerCase() === it.name.toLowerCase())) merged.push(it);
+      }
       setPhase("done");
-      setIssues(MOCK_FINAL_ISSUES);
-      dispatch({ type: "SET_SECURITY_ISSUES", issues: MOCK_FINAL_ISSUES });
+      setIssues(merged);
+      dispatch({ type: "SET_SECURITY_ISSUES", issues: merged });
     };
     run();
   }, []);
@@ -167,9 +212,9 @@ export default function FinalReview() {
                 fullWidth size="lg"
                 variant={allResolved ? "mint" : "ghost"}
                 disabled={!allResolved}
-                onClick={() => navigate("/consent/part1")}
+                onClick={() => navigate("/comprehension")}
               >
-                {allResolved ? "Ready to Deploy →" : criticals.length > 0 ? "Fix critical issues to continue" : "Acknowledge all warnings to continue"}
+                {allResolved ? "Continue to comprehension check →" : criticals.length > 0 ? "Fix critical issues to continue" : "Acknowledge all warnings to continue"}
               </Button>
             </div>
           </div>

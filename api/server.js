@@ -7,8 +7,16 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import Anthropic from "@anthropic-ai/sdk";
 import Stripe from "stripe";
+import solc from "solc";
+import { createWalletClient, createPublicClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { baseSepolia } from "viem/chains";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const BASE_SEPOLIA_RPC = process.env.ALCHEMY_KEY
+  ? `https://base-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`
+  : "https://sepolia.base.org";
 const app = express();
 
 app.use("/api/moonpay-webhook", express.raw({ type: "*/*" }));
@@ -331,9 +339,90 @@ app.post("/api/notify-deploy", async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── POST /api/compile — real solc-js compilation ──────────────────────────────
+
+function compileSolidity(source) {
+  const input = {
+    language: "Solidity",
+    sources: { "Escrow.sol": { content: source } },
+    settings: { outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } } },
+  };
+  const output = JSON.parse(solc.compile(JSON.stringify(input)));
+  const errors = (output.errors ?? []).filter((e) => e.severity === "error");
+  if (errors.length) return { error: errors.map((e) => e.formattedMessage).join("\n") };
+  const file = output.contracts?.["Escrow.sol"];
+  if (!file) return { error: "No contract found in source." };
+  const name = Object.keys(file)[0];
+  const c = file[name];
+  return { name, abi: c.abi, bytecode: "0x" + c.evm.bytecode.object };
+}
+
+app.post("/api/compile", (req, res) => {
+  const { source } = req.body;
+  if (!source) return res.status(400).json({ error: "source is required" });
+  try {
+    const result = compileSolidity(source);
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Compiler crashed: " + err.message });
+  }
+});
+
+// ─── POST /api/deploy — REAL deployment to Base Sepolia testnet ────────────────
+// Deploys via a server-funded testnet wallet. If DEPLOYER_PRIVATE_KEY is not set,
+// returns 503 with a clear message — NEVER a fake address.
+
+app.post("/api/deploy", async (req, res) => {
+  const { source } = req.body;
+  if (!source) return res.status(400).json({ error: "source is required" });
+
+  const pk = process.env.DEPLOYER_PRIVATE_KEY;
+  if (!pk) {
+    return res.status(503).json({
+      error: "not_configured",
+      message: "Testnet deployment is not configured yet. Set DEPLOYER_PRIVATE_KEY (a Base Sepolia funded wallet) on the server to enable real deployment.",
+    });
+  }
+
+  try {
+    // 1. Compile
+    const compiled = compileSolidity(source);
+    if (compiled.error) return res.status(400).json({ error: "compile_error", message: compiled.error });
+
+    // 2. Set up viem clients on Base Sepolia
+    const account = privateKeyToAccount(pk.startsWith("0x") ? pk : `0x${pk}`);
+    const walletClient = createWalletClient({ account, chain: baseSepolia, transport: http(BASE_SEPOLIA_RPC) });
+    const publicClient = createPublicClient({ chain: baseSepolia, transport: http(BASE_SEPOLIA_RPC) });
+
+    // 3. Check the deployer has gas
+    const balance = await publicClient.getBalance({ address: account.address });
+    if (balance === 0n) {
+      return res.status(503).json({
+        error: "no_gas",
+        message: `The deployer wallet ${account.address} has no Base Sepolia ETH. Fund it at https://www.coinbase.com/faucets/base-ethereum-sepolia-faucet then try again.`,
+      });
+    }
+
+    // 4. Deploy (escrow has no constructor args once assembled from the sections)
+    const hash = await walletClient.deployContract({ abi: compiled.abi, bytecode: compiled.bytecode });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+    res.json({
+      contractAddress: receipt.contractAddress,
+      txHash: hash,
+      explorerUrl: `https://sepolia.basescan.org/address/${receipt.contractAddress}`,
+      chain: "base-sepolia",
+    });
+  } catch (err) {
+    console.error("[Deploy]", err.message);
+    res.status(500).json({ error: "deploy_failed", message: err.message });
+  }
+});
+
 // ─── GET /api/health ──────────────────────────────────────────────────────────
 
-app.get("/api/health", (_req, res) => res.json({ ok: true, model: MODEL, ts: Date.now() }));
+app.get("/api/health", (_req, res) => res.json({ ok: true, model: MODEL, deployReady: !!process.env.DEPLOYER_PRIVATE_KEY, ts: Date.now() }));
 
 // ─── Mock Slither ──────────────────────────────────────────────────────────────
 

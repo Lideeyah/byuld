@@ -3,8 +3,9 @@ import { C, F } from "../../tokens";
 interface Props { used: number; limit: number; }
 
 export default function TokenMeter({ used, limit }: Props) {
-  const pct = Math.min((used / limit) * 100, 100);
-  const color = pct > 80 ? C.danger : pct > 60 ? C.warn : C.mint;
+  const unlimited = limit >= 1_000_000;
+  const pct = unlimited ? 8 : Math.min((used / limit) * 100, 100);
+  const color = unlimited ? C.mint : pct > 80 ? C.danger : pct > 60 ? C.warn : C.mint;
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>

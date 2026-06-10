@@ -7,7 +7,7 @@ import EditorPanel from "../../components/build/EditorPanel";
 import ChatPanel from "../../components/build/ChatPanel";
 import Button from "../../components/ui/Button";
 import Spinner from "../../components/ui/Spinner";
-import { useApp } from "../../context/AppContext";
+import { useApp, UNLIMITED_TOKENS } from "../../context/AppContext";
 import { getSections, getSectionDef } from "../../lib/contracts";
 import type { SecurityIssue } from "../../types";
 
@@ -81,6 +81,7 @@ export default function BuildInterface() {
 
   const deductTokens = useCallback((count: number) => {
     dispatch({ type: "ADD_TOKENS", count });
+    if (UNLIMITED_TOKENS) return; // testing: no warnings, no exhaustion wall
     const after = state.tokensUsed + count;
     if (after >= state.tokensLimit * 0.8) setTokenWarning(true);
     if (after >= state.tokensLimit) navigate("/build/tokens");

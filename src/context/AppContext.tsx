@@ -4,6 +4,10 @@ import { getSections } from "../lib/contracts";
 
 const STORAGE_KEY = "byuld_session";
 
+// TESTING: token limit disabled. Flip to false to re-enable the 500/day cap.
+export const UNLIMITED_TOKENS = true;
+const UNLIMITED_VALUE = 1_000_000;
+
 function loadFromStorage(): Partial<AppState> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -48,9 +52,9 @@ const INITIAL: AppState = {
   mode: "C",
   sections: persisted.sections && persisted.sections.length ? persisted.sections : INITIAL_SECTIONS,
   messages: persisted.messages ?? [],
-  // Always enforce the current limit — upgrades old sessions automatically
-  tokensLimit: Math.max(persisted.tokensLimit ?? 500, 500),
-  tokensUsed: Math.min(persisted.tokensUsed ?? 0, 500),
+  // Token limit (disabled while UNLIMITED_TOKENS is on for testing)
+  tokensLimit: UNLIMITED_TOKENS ? UNLIMITED_VALUE : Math.max(persisted.tokensLimit ?? 500, 500),
+  tokensUsed: UNLIMITED_TOKENS ? 0 : Math.min(persisted.tokensUsed ?? 0, 500),
   currentSection: persisted.currentSection ?? 0,
   securityIssues: [],
   byuldFeePaid: false,

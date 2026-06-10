@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy, useWallets, useCreateWallet } from "@privy-io/react-auth";
 import { C, F, R } from "../../tokens";
 import Logo from "../../components/layout/Logo";
 import Button from "../../components/ui/Button";
@@ -19,10 +19,15 @@ const FACTS = [
 export default function WalletSetup() {
   const navigate = useNavigate();
   const { state, dispatch } = useApp();
-  const { user } = usePrivy();
+  const { ready: privyReady, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
+  const { createWallet } = useCreateWallet({
+    onError: (e) => setCreateError(typeof e === "string" ? e : "Could not create your wallet. Please try again."),
+  });
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const triedCreate = useRef(false);
 
   const isFounder = state.persona === "founder";
 
@@ -35,6 +40,23 @@ export default function WalletSetup() {
       dispatch({ type: "SET_AUTHENTICATED", walletAddress: realAddress });
     }
   }, [realAddress]);
+
+  // Actively create an embedded wallet if the user is logged in but has none yet.
+  // Don't just wait on createOnLogin — that can silently never fire.
+  useEffect(() => {
+    if (!privyReady || !authenticated || realAddress || triedCreate.current) return;
+    triedCreate.current = true;
+    setCreateError("");
+    createWallet().catch(() => {
+      // useCreateWallet's onError handles the message; ignore the throw here
+    });
+  }, [privyReady, authenticated, realAddress, createWallet]);
+
+  const retryCreate = () => {
+    setCreateError("");
+    triedCreate.current = true;
+    createWallet().catch(() => {});
+  };
 
   const short = realAddress.length > 14 ? realAddress.slice(0, 6) + "…" + realAddress.slice(-4) : realAddress;
   const ready = !!realAddress;
@@ -75,10 +97,17 @@ export default function WalletSetup() {
             <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, marginBottom: "3px" }}>Your wallet address</div>
             {ready ? (
               <div style={{ fontFamily: F.mono, fontSize: "13px", color: C.textSec }}>{short}</div>
+            ) : createError ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                <span style={{ fontFamily: F.body, fontSize: "12px", color: C.danger }}>{createError}</span>
+                <button onClick={retryCreate} style={{ background: "none", border: `1px solid ${C.purple}`, borderRadius: R.md, cursor: "pointer", color: C.purple, fontSize: "12px", fontFamily: F.body, padding: "4px 10px" }}>
+                  Retry
+                </button>
+              </div>
             ) : (
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <Spinner size={12} color={C.purple} />
-                <span style={{ fontFamily: F.body, fontSize: "12px", color: C.textMute }}>Setting up your wallet…</span>
+                <span style={{ fontFamily: F.body, fontSize: "12px", color: C.textMute }}>Creating your wallet…</span>
               </div>
             )}
           </div>

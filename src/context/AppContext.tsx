@@ -44,7 +44,7 @@ const INITIAL: AppState = {
   goal: persisted.goal ?? "",
   projectName: persisted.projectName ?? "",
   contractType: persisted.contractType ?? "escrow",
-  chain: (persisted.chain as Chain) ?? "base-sepolia",
+  chain: (persisted.chain as Chain) ?? "sepolia",
   mode: "C",
   sections: persisted.sections && persisted.sections.length ? persisted.sections : INITIAL_SECTIONS,
   messages: persisted.messages ?? [],

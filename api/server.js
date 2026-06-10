@@ -10,13 +10,15 @@ import Stripe from "stripe";
 import solc from "solc";
 import { createWalletClient, createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
+import { sepolia } from "viem/chains";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const BASE_SEPOLIA_RPC = process.env.ALCHEMY_KEY
-  ? `https://base-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`
-  : "https://sepolia.base.org";
+// V1 deploys to Ethereum Sepolia — the pk910 PoW faucet funds any address with no gate.
+const DEPLOY_CHAIN = sepolia;
+const DEPLOY_RPC = process.env.ALCHEMY_KEY
+  ? `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`
+  : "https://ethereum-sepolia-rpc.publicnode.com";
 const app = express();
 
 app.use("/api/moonpay-webhook", express.raw({ type: "*/*" }));
@@ -452,7 +454,7 @@ app.post("/api/deploy", async (req, res) => {
   if (!pk) {
     return res.status(503).json({
       error: "not_configured",
-      message: "Testnet deployment is not configured yet. Set DEPLOYER_PRIVATE_KEY (a Base Sepolia funded wallet) on the server to enable real deployment.",
+      message: "Testnet deployment is not configured yet. Set DEPLOYER_PRIVATE_KEY (a Sepolia-funded wallet) on the server to enable real deployment.",
     });
   }
 
@@ -461,17 +463,17 @@ app.post("/api/deploy", async (req, res) => {
     const compiled = compileSolidity(source);
     if (compiled.error) return res.status(400).json({ error: "compile_error", message: compiled.error });
 
-    // 2. Set up viem clients on Base Sepolia
+    // 2. Set up viem clients on Ethereum Sepolia
     const account = privateKeyToAccount(pk.startsWith("0x") ? pk : `0x${pk}`);
-    const walletClient = createWalletClient({ account, chain: baseSepolia, transport: http(BASE_SEPOLIA_RPC) });
-    const publicClient = createPublicClient({ chain: baseSepolia, transport: http(BASE_SEPOLIA_RPC) });
+    const walletClient = createWalletClient({ account, chain: DEPLOY_CHAIN, transport: http(DEPLOY_RPC) });
+    const publicClient = createPublicClient({ chain: DEPLOY_CHAIN, transport: http(DEPLOY_RPC) });
 
     // 3. Check the deployer has gas
     const balance = await publicClient.getBalance({ address: account.address });
     if (balance === 0n) {
       return res.status(503).json({
         error: "no_gas",
-        message: `The deployer wallet ${account.address} has no Base Sepolia ETH. Fund it at https://www.coinbase.com/faucets/base-ethereum-sepolia-faucet then try again.`,
+        message: `The deployer wallet ${account.address} has no Sepolia ETH. Mine some free at https://sepolia-faucet.pk910.de then try again.`,
       });
     }
 
@@ -482,8 +484,8 @@ app.post("/api/deploy", async (req, res) => {
     res.json({
       contractAddress: receipt.contractAddress,
       txHash: hash,
-      explorerUrl: `https://sepolia.basescan.org/address/${receipt.contractAddress}`,
-      chain: "base-sepolia",
+      explorerUrl: `https://sepolia.etherscan.io/address/${receipt.contractAddress}`,
+      chain: "sepolia",
     });
   } catch (err) {
     console.error("[Deploy]", err.message);

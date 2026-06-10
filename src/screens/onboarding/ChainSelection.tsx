@@ -14,14 +14,14 @@ const CHAINS: {
   desc: string; help: string;
 }[] = [
   {
-    id: "base-sepolia", name: "Base Sepolia", tag: "Recommended for beginners", available: true,
-    desc: "Fast, low-cost, and beginner-friendly. This is Coinbase's test network.",
-    help: "Base is an Ethereum Layer 2 built by Coinbase. The Sepolia version is its free test network — perfect for learning. On mainnet, transactions cost a fraction of a cent.",
+    id: "sepolia", name: "Ethereum Sepolia", tag: "Recommended for beginners", available: true,
+    desc: "The original Ethereum test network. Free, widely supported, easy to get test ETH.",
+    help: "Ethereum Sepolia is the most widely-used testnet. It's free, and you can mine test ETH in your browser. On Ethereum mainnet, deploying a contract can cost $5–$50+ depending on congestion.",
   },
   {
-    id: "sepolia", name: "Ethereum Sepolia", available: false,
-    desc: "The original Ethereum test network. Highest ecosystem adoption.",
-    help: "Ethereum Sepolia is the most widely-used testnet. On Ethereum mainnet, deploying a contract can cost $5–$50+ depending on network congestion.",
+    id: "base-sepolia", name: "Base Sepolia", available: false,
+    desc: "Coinbase's Layer 2 test network. Fast and low-cost.",
+    help: "Base is an Ethereum Layer 2 built by Coinbase. Coming soon to Byuld.",
   },
   {
     id: "polygon", name: "Polygon Amoy", available: false,
@@ -33,7 +33,7 @@ const CHAINS: {
 export default function ChainSelection() {
   const navigate = useNavigate();
   const { state, dispatch } = useApp();
-  const [selected, setSelected] = useState<Chain>(state.chain || "base-sepolia");
+  const [selected, setSelected] = useState<Chain>("sepolia");
   const [openHelp, setOpenHelp] = useState<Chain | null>(null);
 
   const handleContinue = () => {

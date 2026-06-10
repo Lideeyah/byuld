@@ -10,8 +10,8 @@ type Step = "summary" | "deploying" | "error";
 
 const STAGES = [
   { label: "Compiling your contract…", sub: "Turning your Solidity into bytecode" },
-  { label: "Submitting to Base Sepolia…", sub: "Broadcasting the deployment transaction" },
-  { label: "Waiting for confirmation…", sub: "Usually 5–20 seconds on Base Sepolia" },
+  { label: "Submitting to Sepolia…", sub: "Broadcasting the deployment transaction" },
+  { label: "Waiting for confirmation…", sub: "Usually 15–30 seconds on Sepolia" },
 ];
 
 export default function Deploy() {
@@ -51,6 +51,7 @@ export default function Deploy() {
         return;
       }
 
+      dispatch({ type: "SET_CHAIN", chain: "sepolia" });
       dispatch({ type: "SET_DEPLOYED", contractAddress: data.contractAddress, txHash: data.txHash });
       if (state.email) {
         fetch("/api/notify-deploy", {
@@ -73,7 +74,7 @@ export default function Deploy() {
           <div style={{ padding: "18px 20px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg }}>
             {[
               ["Contract", "P2P Escrow"],
-              ["Chain", "Base Sepolia Testnet"],
+              ["Chain", "Ethereum Sepolia Testnet"],
               ["Goal", state.goal.slice(0, 50) + (state.goal.length > 50 ? "…" : "")],
             ].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
@@ -87,7 +88,7 @@ export default function Deploy() {
             This is a <strong style={{ color: C.white }}>testnet deployment</strong>. No real money is involved — Base Sepolia is a free practice network.
           </div>
 
-          <Button fullWidth size="lg" onClick={deploy}>Deploy to Base Sepolia →</Button>
+          <Button fullWidth size="lg" onClick={deploy}>Deploy to Sepolia →</Button>
         </div>
       </Shell>
     );

@@ -26,16 +26,6 @@ const CHAINS: { id: Chain; label: string; note?: string }[] = [
   { id: "base-sepolia", label: "Base Sepolia",     note: "Free · Base testnet" },
 ];
 
-function detectContractType(goal: string): string {
-  const g = goal.toLowerCase();
-  if (g.includes("certificate") || g.includes("nft") || g.includes("access") || g.includes("ticket")) return "ERC-721";
-  if (g.includes("token") || g.includes("coin") || g.includes("currency") || g.includes("points")) return "ERC-20";
-  if (g.includes("payment") || g.includes("escrow") || g.includes("pay")) return "Payment Contract";
-  if (g.includes("dao") || g.includes("vote") || g.includes("governance")) return "DAO";
-  if (g.includes("multi") || g.includes("edition")) return "ERC-1155";
-  return "";
-}
-
 export default function GoalCapture() {
   const navigate = useNavigate();
   const { state, dispatch } = useApp();
@@ -46,51 +36,31 @@ export default function GoalCapture() {
 
   const canContinue = goal.trim().length >= 10;
 
+  const escrowSections = (): Section[] =>
+    getSections().map((def, i) => ({ id: def.id, title: def.title, status: i === 0 ? "active" : "locked", code: "" }));
+
   const handleContinue = async () => {
     if (!canContinue || loading) return;
     setLoading(true);
     try {
-      // Call real classify endpoint
+      // V1: every goal maps to escrow. Personalise the framing.
       const res = await fetch("/api/classify-goal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal: goal.trim(), persona: state.persona ?? "founder" }),
       });
       const data = res.ok ? await res.json() : null;
-      const contractType = data?.contractType ?? "ERC721";
-      const needsClarification = data?.needsClarification ?? false;
-
-      dispatch({ type: "SET_GOAL", goal: goal.trim(), contractType });
-      dispatch({ type: "SET_CHAIN", chain });
-
-      // Load the correct sections for this contract type
-      const sectionDefs = getSections(contractType as any);
-      const sections: Section[] = sectionDefs.map((def, i) => ({
-        id: def.id,
-        title: def.title,
-        status: i === 0 ? "active" : "locked",
-        code: "",
-      }));
-      dispatch({ type: "SET_SECTIONS", sections });
-
-      if (needsClarification && data?.clarificationQuestion) {
-        // Store clarification data for the clarify screen
-        sessionStorage.setItem("byuld_clarify", JSON.stringify({
-          question: data.clarificationQuestion,
-          options: data.clarificationOptions,
-        }));
-        navigate("/onboarding/clarify");
-      } else {
-        navigate("/build");
+      if (data?.projectName) {
+        sessionStorage.setItem("byuld_intent", JSON.stringify(data));
       }
-    } catch {
-      // Fallback: default to ERC721
-      dispatch({ type: "SET_GOAL", goal: goal.trim(), contractType: "ERC721" });
+      dispatch({ type: "SET_GOAL", goal: goal.trim(), contractType: "escrow" });
       dispatch({ type: "SET_CHAIN", chain });
-      const sections: Section[] = getSections("ERC721").map((def, i) => ({
-        id: def.id, title: def.title, status: i === 0 ? "active" : "locked", code: "",
-      }));
-      dispatch({ type: "SET_SECTIONS", sections });
+      dispatch({ type: "SET_SECTIONS", sections: escrowSections() });
+      navigate("/build");
+    } catch {
+      dispatch({ type: "SET_GOAL", goal: goal.trim(), contractType: "escrow" });
+      dispatch({ type: "SET_CHAIN", chain });
+      dispatch({ type: "SET_SECTIONS", sections: escrowSections() });
       navigate("/build");
     }
     setLoading(false);

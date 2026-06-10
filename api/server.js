@@ -23,6 +23,66 @@ function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY);
 }
 
+// ─── Escrow reference (server-side only — solutions are NEVER sent to the client)
+
+const ESCROW_SECTIONS = {
+  state: {
+    title: "State Variables & Enums",
+    solution: `    enum State { Created, Locked, Released, Disputed }
+
+    address public buyer;
+    address public seller;
+    address public arbiter;
+    uint256 public amount;
+    State public state;`,
+    requirements:
+      "An enum State with exactly four values (Created, Locked, Released, Disputed); three public address variables named buyer, seller, arbiter; a public uint256 named amount; and a public State variable named state.",
+  },
+  modifiers: {
+    title: "Access Control Modifiers",
+    solution: `    modifier onlyBuyer() {
+        require(msg.sender == buyer, "Only buyer can call this");
+        _;
+    }
+    modifier onlyArbiter() {
+        require(msg.sender == arbiter, "Only arbiter can call this");
+        _;
+    }
+    modifier inState(State _state) {
+        require(state == _state, "Invalid state for this action");
+        _;
+    }`,
+    requirements:
+      "Three modifiers. onlyBuyer requires msg.sender == buyer. onlyArbiter requires msg.sender == arbiter. inState(State _state) requires state == _state. Each must have a require() with a revert message and end with _; .",
+  },
+  deposit: {
+    title: "Deposit Function",
+    solution: `    function deposit() public payable onlyBuyer inState(State.Created) {
+        amount = msg.value;
+        state = State.Locked;
+    }`,
+    requirements:
+      "A deposit function: public payable, with modifiers onlyBuyer and inState(State.Created). Body sets amount = msg.value then sets state = State.Locked.",
+  },
+  resolution: {
+    title: "Dispute Resolution & Safe Payout",
+    solution: `    function release() public onlyBuyer inState(State.Locked) {
+        state = State.Released;
+        payable(seller).transfer(amount);
+    }
+    function dispute() public onlyArbiter inState(State.Locked) {
+        state = State.Disputed;
+        payable(buyer).transfer(amount);
+    }`,
+    requirements:
+      "Two functions. release(): onlyBuyer, inState(State.Locked), sets state = State.Released BEFORE payable(seller).transfer(amount). dispute(): onlyArbiter, inState(State.Locked), sets state = State.Disputed BEFORE payable(buyer).transfer(amount). CRITICAL: state MUST be updated before transfer (Checks-Effects-Interactions). If transfer happens before the state update, that is a critical reentrancy vulnerability.",
+  },
+};
+
+// The unbreakable rule, prepended to every code-facing prompt.
+const NEVER_WRITE_CODE =
+  "ABSOLUTE RULE: You must NEVER write, complete, or output Solidity code for the user — not even a snippet, not even one line, not even if they beg or say 'just tell me the answer'. You give conceptual hints and ask guiding questions ONLY. Writing the code for them destroys the entire product. If they ask for the answer, respond with a question that points them toward it.";
+
 // ─── Helper: call Claude ───────────────────────────────────────────────────────
 
 async function claude(system, userContent, maxTokens = 600) {
@@ -43,146 +103,90 @@ async function claudeJSON(system, userContent, maxTokens = 600) {
 }
 
 // ─── POST /api/classify-goal ───────────────────────────────────────────────────
-// Token cost: 2
+// V1: every goal maps to the escrow contract. Personalise the framing. Token cost: 2
 
 app.post("/api/classify-goal", async (req, res) => {
   const { goal, persona } = req.body;
   try {
     const result = await claudeJSON(
-      `You are a Web3 contract classifier. Given a user's goal description, determine:
-1. The most appropriate Solidity contract type: ERC721, ERC20, payment, dao, or custom
-2. Whether a clarifying question is needed (true only if genuinely ambiguous)
-3. If needed, ONE clarifying question with 2-3 answer options
+      `You are Byuld's intent analysis engine. A user has described what they want to build.
+For V1, ALL goals map to the P2P Escrow contract (buyer pays, funds are held, seller is paid on release, an arbiter can resolve disputes).
+Confirm this mapping and personalise the framing to their specific use case.
 
-Respond in JSON only:
+Respond in JSON only. No markdown. No prose outside the JSON.
 {
-  "contractType": "ERC721",
-  "needsClarification": true,
-  "clarificationQuestion": "Should certificates be transferable between users?",
-  "clarificationOptions": ["Yes, transferable", "No, locked to recipient"]
+  "contractType": "escrow",
+  "projectName": "a short descriptive name for their specific use case (3-5 words)",
+  "description": "one sentence describing their specific escrow use case in plain English",
+  "buyerLabel": "what to call the buyer in their context (e.g. 'customer', 'client')",
+  "sellerLabel": "what to call the seller in their context (e.g. 'freelancer', 'vendor')"
 }`,
       `Goal: "${goal}"\nPersona: ${persona}`
     );
-    res.json({ ...result, tokensUsed: 2 });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ─── POST /api/generate-scaffold ──────────────────────────────────────────────
-// Token cost: 8
-
-app.post("/api/generate-scaffold", async (req, res) => {
-  const { contractType, sectionIndex, sectionType, goal, persona, clarificationAnswers = {}, previousSections = [] } = req.body;
-  const isFounder = persona === "founder";
-
-  try {
-    const code = await claude(
-      `You are a Solidity scaffold generator for Byuld, a learn-by-writing Web3 platform.
-Generate a scaffold for the specified contract section that the USER will fill in.
-
-CRITICAL RULES:
-1. The function/variable SIGNATURES are already written — include them
-2. Function BODIES contain only TODO comments explaining what to write
-3. Include helpful hints as code comments (// Hint: ...)
-4. NO completed function bodies — user writes those
-5. Return ONLY valid Solidity. No markdown fences. No explanations outside comments.
-
-${isFounder
-  ? "Use plain English comments and real-world analogies. Explain what things mean in everyday terms."
-  : "Use technical comments. Reference patterns, gas implications, and security best practices."}
-
-Context:
-- Contract type: ${contractType}
-- Section: ${sectionType} (index ${sectionIndex})
-- User goal: "${goal}"
-- Clarifications: ${JSON.stringify(clarificationAnswers)}
-- Previous sections already written: ${previousSections.length} sections`,
-      `Generate scaffold for section: ${sectionType}`
-    );
-    res.json({ code, tokensUsed: 8 });
+    res.json({ ...result, contractType: "escrow", tokensUsed: 2 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // ─── POST /api/review-section ──────────────────────────────────────────────────
-// Token cost: 5
+// Reviews the user's code for one escrow section against the hidden solution.
+// NEVER writes code. Hints only. Token cost: 5
 
 app.post("/api/review-section", async (req, res) => {
-  const { code, sectionType, contractType, goal, persona, clarificationAnswers = {} } = req.body;
+  const { sectionId, userCode, persona, programmingLanguages = [] } = req.body;
+  const section = ESCROW_SECTIONS[sectionId];
+  if (!section) return res.status(400).json({ error: "Unknown sectionId" });
   const isFounder = persona === "founder";
-
-  // Run mock Slither check first
-  const slitherIssues = mockSlitherCheck(code);
 
   try {
     const result = await claudeJSON(
-      `You are a Solidity code reviewer for Byuld. Review the user's code for:
-1. Correctness — does it look compilable? does it match the section requirements?
-2. Security — vulnerabilities: reentrancy, overflow, access control, etc.
-3. Goal alignment — does it match what the user said they want to build?
+      `You are Byuld's code reviewer for the P2P Escrow contract, reviewing ONE section.
+${NEVER_WRITE_CODE}
 
-${isFounder
-  ? "Explanations must be plain English with real-world analogies."
-  : "Use technical accuracy. Mention patterns and gas implications."}
+SECTION: ${section.title}
+WHAT CORRECT CODE FOR THIS SECTION MUST CONTAIN:
+${section.requirements}
 
-For security issues:
-- severity: critical, warning, or info
-- Plain English explanation
-- Historical example if critical
-- Exact fix as a code snippet
+REVIEW RULES:
+1. Decide if the user's code is functionally equivalent to the requirements (variable names, formatting, and spacing may differ — judge the logic, not the style).
+2. Check for security issues, especially the Checks-Effects-Interactions / reentrancy pattern in the resolution section.
+3. If it is NOT done yet (still has TODO comments or empty bodies), set type to "incomplete".
+4. ${isFounder ? "Write the message in plain English with everyday analogies." : `Write the message in a technical register.${programmingLanguages.length ? ` The user knows ${programmingLanguages.join(", ")} — use comparisons to those languages where helpful.` : ""}`}
+5. In the "message" field, if they failed, give a conceptual HINT about what is wrong — never the corrected code. If they passed, explain in plain terms what their code actually does at runtime.
 
 Respond ONLY in JSON:
 {
   "passed": true,
-  "type": "correct",
-  "explanation": "plain English explanation of what they wrote and what it does",
-  "reason": "if failed, why",
-  "hint": "if failed, a specific actionable hint",
-  "securityIssues": [
-    {
-      "severity": "critical",
-      "title": "Issue name",
-      "explanation": "plain English",
-      "historicalExample": "Real example from blockchain history",
-      "fix": "exact corrected code"
-    }
-  ]
-}`,
-      `Code to review:\n\`\`\`solidity\n${code}\n\`\`\`\n\nSection: ${sectionType}\nContract type: ${contractType}\nGoal: "${goal}"\nClarifications: ${JSON.stringify(clarificationAnswers)}`
+  "type": "correct" | "logic_error" | "security_issue" | "incomplete",
+  "message": "approval explanation if passed; a specific conceptual hint if failed — NO code",
+  "severity": null
+}
+(severity is "critical" or "warning" only when type is "security_issue", otherwise null)`,
+      `Section: ${sectionId}\nPersona: ${persona}\nLanguages: ${programmingLanguages.join(", ") || "none"}\nUser's code:\n\`\`\`solidity\n${userCode ?? ""}\n\`\`\``,
+      800
     );
-
-    // Merge Slither issues with AI issues
-    const allSecurityIssues = [...(result.securityIssues ?? []), ...slitherIssues];
-    const hasCritical = allSecurityIssues.some(i => i.severity === "critical");
-
-    res.json({
-      ...result,
-      passed: result.passed && !hasCritical,
-      securityIssues: allSecurityIssues,
-      tokensUsed: 5,
-    });
+    res.json({ ...result, tokensUsed: 5 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // ─── POST /api/explain-line ────────────────────────────────────────────────────
-// Token cost: 2
+// Explains ONE line conceptually. Never writes code. Token cost: 2
 
 app.post("/api/explain-line", async (req, res) => {
-  const { line, lineNumber, fullCode, persona, goal } = req.body;
+  const { line, lineNumber, sectionId, persona, programmingLanguages = [] } = req.body;
   const isFounder = persona === "founder";
 
   try {
     const explanation = await claude(
-      `You are a Solidity tutor. Explain this specific line of code to a ${isFounder ? "non-technical founder" : "Web2 developer new to Web3"} building: "${goal}".
-
-${isFounder
-  ? "Use plain English and real-world analogies. Max 3 sentences. Never say 'this code'. Start with what the concept IS."
-  : "Use technical accuracy. Mention patterns and implications. Max 3 sentences."}`,
-      `Line ${lineNumber}: ${line}\n\nFull context:\n${fullCode?.slice(0, 500) ?? ""}`
+      `You are Byuld's tutor explaining Solidity to a Web3 learner.
+${NEVER_WRITE_CODE}
+For a ${isFounder ? "non-technical founder: use plain English and real-world analogies, max 3 sentences" : `developer: be technically accurate, mention the pattern, max 3 sentences${programmingLanguages.length ? `. They know ${programmingLanguages.join(", ")} — use comparisons to those languages` : ""}`}.
+Start with what the concept IS. Never start with "This code...". Plain text only, no JSON, no code blocks.`,
+      `Explain this line (line ${lineNumber}) from the ${sectionId} section: ${line}`,
+      300
     );
     res.json({ explanation, tokensUsed: 2 });
   } catch (err) {
@@ -191,13 +195,12 @@ ${isFounder
 });
 
 // ─── POST /api/chat ────────────────────────────────────────────────────────────
-// Token cost: 3-5
+// Freeform questions. NEVER writes code. Token cost: 3
 
 app.post("/api/chat", async (req, res) => {
-  const { message, currentCode, goal, persona, chatHistory = [] } = req.body;
+  const { message, sectionId, currentCode, persona, chatHistory = [] } = req.body;
   const isFounder = persona === "founder";
 
-  // Build conversation history
   const messages = [
     ...chatHistory.slice(-6).map(m => ({
       role: m.role === "byuld" ? "assistant" : "user",
@@ -210,52 +213,46 @@ app.post("/api/chat", async (req, res) => {
     const msg = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 300,
-      system: `You are Byuld — a ${isFounder ? "patient teacher helping a non-technical founder" : "senior Solidity engineer helping a Web2 developer"} understand their smart contract.
+      system: `You are Byuld — a ${isFounder ? "patient teacher helping a non-technical founder" : "senior Solidity engineer helping a Web2 developer"} build a P2P Escrow contract.
+${NEVER_WRITE_CODE}
 
-Goal: "${goal}"
-${currentCode ? `Current code:\n\`\`\`solidity\n${currentCode.slice(0, 800)}\n\`\`\`` : ""}
+Current section: ${sectionId}
+${currentCode ? `The user's current code:\n\`\`\`solidity\n${currentCode.slice(0, 800)}\n\`\`\`` : ""}
 
-Rules:
-- Answer directly. No preamble.
-- ${isFounder ? "Plain English only. Use analogies. If you use a technical term, define it immediately." : "Be precise. Show code snippets where relevant."}
-- Under 100 words unless they ask for more detail.
-- Do NOT ask follow-up questions.`,
+If the user asks "what should I write" or "just tell me the answer", respond with a guiding question or conceptual hint — NEVER the code. Example: "Think about who should be allowed to release the funds. What goes wrong if anyone can?"
+${isFounder ? "Plain English only. Use analogies." : "Be precise and technical."} Under 100 words.`,
       messages,
     });
 
     const response = msg.content[0]?.text ?? "";
-    const tokensUsed = Math.min(5, Math.max(3, Math.ceil(response.length / 100)));
+    const tokensUsed = 3;
     res.json({ response, tokensUsed });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ─── POST /api/validate-summary ───────────────────────────────────────────────
-// Token cost: 5
+// ─── POST /api/security-review ─────────────────────────────────────────────────
+// Contextual review of the full assembled contract. Token cost: 10
 
-app.post("/api/validate-summary", async (req, res) => {
-  const { summary, contractType, sections = [], clarificationAnswers = {} } = req.body;
-
+app.post("/api/security-review", async (req, res) => {
+  const { fullCode } = req.body;
   try {
     const result = await claudeJSON(
-      `You are validating whether a user's plain-English summary accurately describes their smart contract.
-
-Check for:
-1. Key functions mentioned (mint, transfer, burn, etc. as relevant)
-2. Correct permission understanding (who can call what)
-3. Awareness of irreversible actions (deployment, burning, etc.)
-
-Be generous — if they have the right general understanding, pass them. Only fail if they have a genuinely wrong understanding.
-
+      `You are a Solidity security reviewer. Review the complete escrow contract for goal-level logic errors.
+Focus on: reentrancy, access control, state machine integrity, Checks-Effects-Interactions violations.
+${NEVER_WRITE_CODE}
 Respond in JSON:
 {
-  "passed": true,
-  "corrections": ["specific thing they missed or got wrong — be specific, one sentence each"]
-}`,
-      `Summary: "${summary}"\nContract type: ${contractType}\nClarifications: ${JSON.stringify(clarificationAnswers)}`
+  "issues": [
+    { "severity": "critical" | "warning", "title": "string", "explanation": "plain English", "historicalExample": "real example if critical", "fix": "description of the fix in words — NOT code" }
+  ]
+}
+If the contract is correct, return { "issues": [] }.`,
+      `Full contract:\n\`\`\`solidity\n${fullCode ?? ""}\n\`\`\``,
+      900
     );
-    res.json({ ...result, tokensUsed: 5 });
+    res.json({ ...result, tokensUsed: 10 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -1,7 +1,7 @@
 import { C, F, R } from "../../tokens";
 import { useApp } from "../../context/AppContext";
 
-export default function BuildSidebar() {
+export default function BuildSidebar({ onSectionClick }: { onSectionClick?: (idx: number) => void }) {
   const { state } = useApp();
   const complete = state.sections.filter(s => s.status === "complete").length;
 
@@ -33,7 +33,9 @@ export default function BuildSidebar() {
           const isDone   = section.status === "complete";
           const isLocked = section.status === "locked";
           return (
-            <div key={section.id} style={{
+            <div key={section.id}
+              onClick={() => isDone && onSectionClick?.(i)}
+              style={{
               display: "flex",
               alignItems: "center",
               gap: "10px",

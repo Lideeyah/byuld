@@ -15,21 +15,23 @@ function loadFromStorage(): Partial<AppState> {
 function saveToStorage(state: AppState) {
   try {
     const { email, walletAddress, isAuthenticated, persona, goal, contractType, chain,
-            tokensUsed, tokensLimit, contractAddress, txHash, deployedAt } = state;
+            tokensUsed, tokensLimit, contractAddress, txHash, deployedAt,
+            sections, currentSection, messages } = state;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       email, walletAddress, isAuthenticated, persona, goal, contractType, chain,
       tokensUsed, tokensLimit, contractAddress, txHash, deployedAt,
+      sections, currentSection, messages,
     }));
   } catch { /* ignore */ }
 }
 
-const INITIAL_SECTIONS: Section[] = [
-  { id: "imports",   title: "Imports & Pragma",      status: "active",  code: "" },
-  { id: "contract",  title: "Contract Declaration",  status: "locked",  code: "" },
-  { id: "state",     title: "State Variables",       status: "locked",  code: "" },
-  { id: "functions", title: "Core Functions",        status: "locked",  code: "" },
-  { id: "security",  title: "Access Control",        status: "locked",  code: "" },
-];
+// V1: escrow sections. The active section's scaffold is loaded by BuildInterface.
+const INITIAL_SECTIONS: Section[] = getSections().map((def, i) => ({
+  id: def.id,
+  title: def.title,
+  status: i === 0 ? "active" : "locked",
+  code: "",
+}));
 
 const persisted = loadFromStorage();
 
@@ -42,12 +44,12 @@ const INITIAL: AppState = {
   contractType: persisted.contractType ?? "",
   chain: (persisted.chain as Chain) ?? "base",
   mode: "C",
-  sections: INITIAL_SECTIONS,
-  messages: [],
+  sections: persisted.sections && persisted.sections.length ? persisted.sections : INITIAL_SECTIONS,
+  messages: persisted.messages ?? [],
   // Always enforce the current limit — upgrades old sessions automatically
   tokensLimit: Math.max(persisted.tokensLimit ?? 500, 500),
   tokensUsed: Math.min(persisted.tokensUsed ?? 0, 500),
-  currentSection: 0,
+  currentSection: persisted.currentSection ?? 0,
   securityIssues: [],
   byuldFeePaid: false,
   gasFunded: false,
@@ -121,7 +123,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveToStorage(state);
   }, [state.isAuthenticated, state.persona, state.goal, state.contractType, state.chain,
-      state.tokensUsed, state.email, state.walletAddress, state.contractAddress, state.txHash, state.deployedAt]);
+      state.tokensUsed, state.email, state.walletAddress, state.contractAddress, state.txHash, state.deployedAt,
+      state.sections, state.currentSection, state.messages]);
 
   return <Ctx.Provider value={{ state, dispatch }}>{children}</Ctx.Provider>;
 }

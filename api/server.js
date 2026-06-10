@@ -266,6 +266,77 @@ If the contract is correct, return { "issues": [] }.`,
   }
 });
 
+// ─── Comprehension gate (3 parts) ──────────────────────────────────────────────
+
+// PART 1 — POST /api/validate-summary
+app.post("/api/validate-summary", async (req, res) => {
+  const { summary } = req.body;
+  try {
+    const result = await claudeJSON(
+      `You are validating whether a user genuinely understands their P2P Escrow contract.
+Check their summary for ALL of: (1) the three parties — buyer, seller, arbiter; (2) that FUNDS are HELD/LOCKED by the contract itself, not by a person; (3) the condition under which funds get released.
+The summary must be in their OWN words — if it reads as copied from scaffold comments, fail it.
+Be reasonably generous: if they clearly understand all three points in plain language, pass them.
+
+Respond in JSON only:
+{ "passed": true|false, "corrections": ["specific thing missing or wrong — one sentence each"] }`,
+      `User's summary: "${summary ?? ""}"`,
+      500
+    );
+    res.json({ ...result, tokensUsed: 5 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PART 2 — POST /api/validate-bug-explanation
+app.post("/api/validate-bug-explanation", async (req, res) => {
+  const { field1, field2 } = req.body;
+  try {
+    const result = await claudeJSON(
+      `You are checking whether a user understood a reentrancy vulnerability in a Solidity escrow contract.
+The bug: ETH is transferred BEFORE the state is updated, enabling reentrancy.
+field1 must identify the ordering problem (transfer happens before the state update / wrong order).
+field2 must describe that an attacker could re-enter and drain funds / call release repeatedly / lose the contract's funds.
+Both must show real understanding, not vague guesses.
+${NEVER_WRITE_CODE}
+
+Respond in JSON only:
+{ "passed": true|false, "hint": "a specific hint if failed — never the answer" }`,
+      `Field 1 (which line / what's the bug): "${field1 ?? ""}"\nField 2 (what would happen): "${field2 ?? ""}"`,
+      500
+    );
+    res.json({ ...result, tokensUsed: 5 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PART 3 — POST /api/validate-decisions
+app.post("/api/validate-decisions", async (req, res) => {
+  const { answers } = req.body; // { order, access, state }
+  try {
+    const result = await claudeJSON(
+      `You are checking whether a user can explain three key decisions in their escrow contract.
+For EACH answer, check for genuine reasoning that shows they understand the CONSEQUENCE — not keywords, not copied phrases.
+Fail any answer that is empty, "I don't know", "because Byuld said so", or otherwise shows no real understanding.
+
+The three decisions:
+- order: Why must state update before ETH is transferred? (correct reasoning involves reentrancy / attacker re-entering before the record changes)
+- access: Why can't the seller release the funds themselves? (correct reasoning involves the seller having incentive to take money without delivering / conflict of interest)
+- state: Why does the contract need to track its state at all? (correct reasoning involves preventing invalid actions / double release / enforcing the correct order of steps)
+
+Respond in JSON only:
+{ "passed": true|false, "failures": ["which decision failed and why — one sentence each"] }`,
+      `Answers:\norder: "${answers?.order ?? ""}"\naccess: "${answers?.access ?? ""}"\nstate: "${answers?.state ?? ""}"`,
+      600
+    );
+    res.json({ ...result, tokensUsed: 8 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── POST /api/create-payment-intent ──────────────────────────────────────────
 
 app.post("/api/create-payment-intent", async (req, res) => {

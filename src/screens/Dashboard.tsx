@@ -6,11 +6,21 @@ import Badge from "../components/ui/Badge";
 import TokenMeter from "../components/ui/TokenMeter";
 import { useApp } from "../context/AppContext";
 
-const MOCK_PROJECTS = [
-  { name: "Certificate NFT",   type: "ERC-721",          chain: "base",     status: "deployed",    date: "Apr 18, 2025" },
-  { name: "Community Token",   type: "ERC-20",           chain: "polygon",  status: "in-progress", date: "Apr 22, 2025" },
-  { name: "Event Access Pass", type: "ERC-721",          chain: "sepolia",  status: "deployed",    date: "Apr 24, 2025" },
-];
+const EXPLORER: Record<string, string> = {
+  "base-sepolia": "https://sepolia.basescan.org/address/",
+  base: "https://basescan.org/address/",
+  sepolia: "https://sepolia.etherscan.io/address/",
+  ethereum: "https://etherscan.io/address/",
+  polygon: "https://polygonscan.com/address/",
+};
+
+interface Build {
+  name: string;
+  chain: string;
+  status: "deployed" | "in-progress";
+  date: string;
+  address?: string;
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -18,9 +28,29 @@ export default function Dashboard() {
 
   const firstName = state.email.split("@")[0] || "there";
 
+  // ── Derive REAL builds from state — no mock data ──────────────────────────
+  const builds: Build[] = [];
+  const hasWrittenCode = state.sections.some(s => s.code && s.code.trim().length > 0);
+
+  if (state.contractAddress && state.deployedAt) {
+    builds.push({
+      name: state.projectName || state.goal || "P2P Escrow",
+      chain: state.chain,
+      status: "deployed",
+      date: new Date(state.deployedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+      address: state.contractAddress,
+    });
+  } else if (hasWrittenCode && state.goal) {
+    builds.push({
+      name: state.projectName || state.goal || "P2P Escrow",
+      chain: state.chain,
+      status: "in-progress",
+      date: "Started",
+    });
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
-      {/* Nav */}
       <nav style={{ height: "56px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 28px", gap: "20px" }}>
         <Logo size="sm" />
         <div style={{ flex: 1 }} />
@@ -28,19 +58,13 @@ export default function Dashboard() {
           <div style={{ width: "120px" }}>
             <TokenMeter used={state.tokensUsed} limit={state.tokensLimit} />
           </div>
-          <div style={{
-            width: "32px", height: "32px", borderRadius: "50%",
-            background: `${C.purple}22`, border: `1px solid ${C.purple}33`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "13px", color: C.purple, fontWeight: 700, cursor: "pointer",
-          }}>
+          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: `${C.purple}22`, border: `1px solid ${C.purple}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", color: C.purple, fontWeight: 700 }}>
             {firstName.charAt(0).toUpperCase()}
           </div>
         </div>
       </nav>
 
-      <div style={{ padding: "40px 28px", maxWidth: "900px" }}>
-        {/* Welcome */}
+      <div style={{ padding: "40px 28px", maxWidth: "900px", width: "100%" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "40px" }}>
           <div>
             <h1 style={{ fontSize: "26px", fontWeight: 700, fontFamily: F.display, color: C.white, marginBottom: "4px" }}>
@@ -53,57 +77,65 @@ export default function Dashboard() {
           <Button onClick={() => navigate("/onboarding/goal")}>+ New build</Button>
         </div>
 
-        {/* Token card */}
-        <div style={{ padding: "18px 22px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg, marginBottom: "32px", display: "flex", alignItems: "center", gap: "20px" }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body, marginBottom: "8px" }}>Today's token usage</div>
-            <TokenMeter used={state.tokensUsed} limit={state.tokensLimit} />
-          </div>
-          <Button variant="secondary" size="sm" onClick={() => navigate("/build/tokens")}>
-            Upgrade
-          </Button>
-        </div>
-
-        {/* Projects */}
-        <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h2 style={{ fontSize: "14px", fontWeight: 600, color: C.textSec, fontFamily: F.body }}>Your builds</h2>
-          <span style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>{MOCK_PROJECTS.length} projects</span>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {MOCK_PROJECTS.map((p, i) => (
-            <div key={i} style={{
-              padding: "16px 20px", background: C.surface,
-              border: `1px solid ${C.border}`, borderRadius: R.lg,
-              display: "flex", alignItems: "center", gap: "16px",
-              cursor: "pointer", transition: "border-color 0.15s",
-            }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = C.purple + "55")}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = C.border)}
-              onClick={() => p.status === "in-progress" ? navigate("/build") : undefined}
-            >
-              <div style={{
-                width: "36px", height: "36px", borderRadius: "10px", flexShrink: 0,
-                background: p.status === "deployed" ? `${C.mint}12` : `${C.purple}12`,
-                border: `1px solid ${p.status === "deployed" ? C.mint + "33" : C.purple + "33"}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "16px",
-              }}>
-                {p.status === "deployed" ? "✓" : "✎"}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "14px", fontWeight: 600, color: C.white, fontFamily: F.body, marginBottom: "3px" }}>{p.name}</div>
-                <div style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>{p.date} · {p.chain}</div>
-              </div>
-              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <Badge variant="purple">{p.type}</Badge>
-                <Badge variant={p.status === "deployed" ? "mint" : "muted"}>
-                  {p.status === "deployed" ? "Deployed" : "In progress"}
-                </Badge>
-              </div>
+        {/* Stats — real counts */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "32px" }}>
+          {[
+            { label: "Contracts deployed", value: builds.filter(b => b.status === "deployed").length },
+            { label: "Sections written", value: state.sections.filter(s => s.status === "complete").length },
+            { label: "Tokens used today", value: state.tokensUsed },
+          ].map(s => (
+            <div key={s.label} style={{ padding: "18px 20px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg }}>
+              <div style={{ fontSize: "26px", fontWeight: 700, fontFamily: F.display, color: C.white, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, marginTop: "6px" }}>{s.label}</div>
             </div>
           ))}
         </div>
+
+        <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h2 style={{ fontSize: "14px", fontWeight: 600, color: C.textSec, fontFamily: F.body }}>Your builds</h2>
+          {builds.length > 0 && <span style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>{builds.length} {builds.length === 1 ? "project" : "projects"}</span>}
+        </div>
+
+        {builds.length === 0 ? (
+          // Honest empty state — no fake projects
+          <div style={{ padding: "48px 24px", background: C.surface, border: `1px dashed ${C.border}`, borderRadius: R.lg, textAlign: "center" }}>
+            <div style={{ fontSize: "32px", marginBottom: "12px", opacity: 0.5 }}>◇</div>
+            <div style={{ fontSize: "15px", fontWeight: 600, color: C.white, fontFamily: F.body, marginBottom: "6px" }}>No builds yet</div>
+            <div style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body, marginBottom: "20px" }}>
+              Start your first contract and it'll appear here once you deploy it.
+            </div>
+            <Button onClick={() => navigate("/onboarding/goal")}>Start your first build →</Button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {builds.map((b, i) => (
+              <div key={i} style={{ padding: "16px 20px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg, display: "flex", alignItems: "center", gap: "16px", cursor: "pointer", transition: "border-color 0.15s" }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = C.purple + "55")}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = C.border)}
+                onClick={() => {
+                  if (b.status === "in-progress") navigate("/build");
+                  else if (b.address) window.open(EXPLORER[b.chain] + b.address, "_blank");
+                }}
+              >
+                <div style={{ width: "36px", height: "36px", borderRadius: "10px", flexShrink: 0, background: b.status === "deployed" ? `${C.mint}12` : `${C.purple}12`, border: `1px solid ${b.status === "deployed" ? C.mint + "33" : C.purple + "33"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}>
+                  {b.status === "deployed" ? "✓" : "✎"}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: C.white, fontFamily: F.body, marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.name}</div>
+                  <div style={{ fontSize: "12px", color: C.textMute, fontFamily: b.address ? F.mono : F.body }}>
+                    {b.address ? `${b.address.slice(0, 10)}… · ${b.chain}` : `${b.date} · ${b.chain}`}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <Badge variant="purple">P2P Escrow</Badge>
+                  <Badge variant={b.status === "deployed" ? "mint" : "muted"}>
+                    {b.status === "deployed" ? "Deployed" : "In progress"}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

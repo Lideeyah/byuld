@@ -33,32 +33,28 @@ interface Metrics {
 function readMetrics(): Metrics {
   const raw = localStorage.getItem("byuld_session");
   const session = raw ? JSON.parse(raw) : null;
-
-  // Simulate some plausible metrics from the single session
-  const now = Date.now();
   const oneDayMs = 86_400_000;
+  const now = Date.now();
 
-  const users: UserRecord[] = session ? [{
-    email: session.email ?? "unknown@email.com",
+  // Real data only — the current browser session. No padding, no fabricated numbers.
+  const users: UserRecord[] = session?.email ? [{
+    email: session.email,
     persona: session.persona ?? null,
-    chain: session.chain ?? "base",
-    contractType: session.contractType ?? "ERC721",
+    chain: session.chain ?? "base-sepolia",
+    contractType: session.contractType ?? "escrow",
     stage: session.deployedAt ? "deployed" : session.contractType ? "building" : "onboarding",
     tokensUsed: session.tokensUsed ?? 0,
     deployedAt: session.deployedAt ?? 0,
     contractAddress: session.contractAddress ?? "",
-    signedUpAt: session.deployedAt ? session.deployedAt - oneDayMs : now - 3600_000,
+    signedUpAt: session.deployedAt || now,
   }] : [];
 
-  // Mock daily signups for the chart (last 7 days) — spike on today
-  const dailySignups = [2, 1, 3, 2, 4, 5, users.length + 8];
-
   return {
-    totalUsers: users.length + 12,         // padded for demo
-    completedOnboarding: users.filter(u => u.persona).length + 8,
-    activeLast24h: users.filter(u => Date.now() - u.signedUpAt < oneDayMs).length + 3,
-    totalDeployments: users.filter(u => !!u.deployedAt).length + 4,
-    dailySignups,
+    totalUsers: users.length,
+    completedOnboarding: users.filter(u => u.persona).length,
+    activeLast24h: users.filter(u => now - u.signedUpAt < oneDayMs).length,
+    totalDeployments: users.filter(u => !!u.deployedAt).length,
+    dailySignups: [],
     recentUsers: users,
   };
 }
@@ -221,7 +217,16 @@ export default function Admin() {
       {/* Chart + recent users */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "16px", marginBottom: "32px" }}>
         <div style={{ padding: "24px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg }}>
-          <BarChart data={metrics.dailySignups} label="Daily signups — last 7 days" />
+          {metrics.dailySignups.length > 0 ? (
+            <BarChart data={metrics.dailySignups} label="Daily signups — last 7 days" />
+          ) : (
+            <div>
+              <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "16px" }}>Daily signups</div>
+              <div style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body, lineHeight: 1.6 }}>
+                Historical analytics need a connected database. This MVP reads only the current browser session.
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{ padding: "24px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg }}>

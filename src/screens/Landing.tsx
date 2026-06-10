@@ -5,19 +5,18 @@ import Logo from "../components/layout/Logo";
 import Button from "../components/ui/Button";
 
 const DEMO_LINES = [
-  "// Byuld: This contract issues certificates as NFTs",
+  "// Byuld: A secure escrow between buyer, seller & arbiter",
   "pragma solidity ^0.8.19;",
   "",
-  'import "@openzeppelin/contracts/token/ERC721/ERC721.sol";',
+  "contract Escrow {",
+  "    enum State { Created, Locked, Released, Disputed }",
   "",
-  "contract CertificateNFT is ERC721 {",
-  "    // TODO: Add access control",
-  "    mapping(uint256 => address) private _issuedTo;",
-  "",
-  "    function mint(address to, uint256 tokenId)",
-  "        public onlyOwner {",
-  "        _mint(to, tokenId);",
-  "        _issuedTo[tokenId] = to;",
+  "    // TODO: who is allowed to call release()?",
+  "    function release()",
+  "        public onlyBuyer inState(State.Locked) {",
+  "        // update state BEFORE sending money",
+  "        state = State.Released;",
+  "        payable(seller).transfer(amount);",
   "    }",
   "}",
 ];
@@ -98,7 +97,7 @@ export default function Landing() {
 
         {/* Social proof */}
         <div style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>
-          Built for Web3 founders · Secured by Slither + AI · Deploy to Base, Ethereum, Polygon
+          Testnet deployment · No real money at risk while you learn · Secured by static + AI review
         </div>
       </div>
 
@@ -159,9 +158,9 @@ export default function Landing() {
             </div>
             <div style={{ padding: "20px", flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
               {[
-                { role: "byuld" as const, text: "Should your certificates be transferable (can be sold) or locked to the person who earned them? This affects the contract fundamentally." },
-                { role: "user" as const, text: "Locked — they should only belong to the person who completed the course." },
-                { role: "byuld" as const, text: "Good choice. That makes this a soulbound token — we'll override the transfer functions to block movement. Write the mint function below." },
+                { role: "byuld" as const, text: "You're sending the money before updating the state. What could a malicious contract do if it gets called back right here?" },
+                { role: "user" as const, text: "...call release again before the state changes?" },
+                { role: "byuld" as const, text: "Exactly — that's a reentrancy attack, how the 2016 DAO hack drained $60M. Move the state update above the transfer. I won't write it for you — you've got this." },
               ].map((msg, i) => (
                 <div key={i} style={{ display: "flex", justifyContent: msg.role === "byuld" ? "flex-start" : "flex-end" }}>
                   <div style={{
@@ -217,7 +216,7 @@ export default function Landing() {
         <h2 style={{ fontSize: "36px", fontWeight: 800, fontFamily: F.display, color: C.white, marginBottom: "16px", letterSpacing: "-0.02em" }}>
           Ready to build your first contract?
         </h2>
-        <p style={{ fontSize: "15px", color: C.textSec, fontFamily: F.body, marginBottom: "32px" }}>Free to start. No wallet needed upfront.</p>
+        <p style={{ fontSize: "15px", color: C.textSec, fontFamily: F.body, marginBottom: "32px" }}>Free to start. Deploy to testnet — no real money at risk.</p>
         <Button size="lg" onClick={() => navigate("/auth")}>Start Building</Button>
       </div>
 

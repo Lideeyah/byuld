@@ -22,15 +22,24 @@ const OPTIONS: { persona: Persona; icon: string; title: string; desc: string }[]
   },
 ];
 
+const LANGUAGES = ["JavaScript", "TypeScript", "Python", "Java", "Rust", "Go", "Other"];
+
 export default function PersonaSelection() {
   const navigate = useNavigate();
   const { dispatch } = useApp();
   const [selected, setSelected] = useState<Persona>(null);
   const [hov, setHov] = useState<Persona>(null);
+  const [langs, setLangs] = useState<string[]>([]);
+
+  const toggleLang = (l: string) =>
+    setLangs(prev => prev.includes(l) ? prev.filter(x => x !== l) : [...prev, l]);
+
+  const canContinue = selected === "founder" || (selected === "developer" && langs.length > 0);
 
   const handleContinue = () => {
-    if (!selected) return;
+    if (!canContinue) return;
     dispatch({ type: "SET_PERSONA", persona: selected });
+    if (selected === "developer") dispatch({ type: "SET_LANGUAGES", languages: langs });
     navigate("/onboarding/wallet");
   };
 
@@ -44,7 +53,7 @@ export default function PersonaSelection() {
         <div style={{ textAlign: "center", marginBottom: "40px" }}>
           <Logo size="md" />
           <div style={{ marginTop: "32px", marginBottom: "12px" }}>
-            <ProgressStep steps={["You", "Wallet", "Goal", "Build"]} current={0} />
+            <ProgressStep steps={["You", "Wallet", "Chain", "Goal", "Review"]} current={0} />
           </div>
           <h1 style={{ fontSize: "28px", fontWeight: 700, fontFamily: F.display, color: C.white, marginBottom: "8px", marginTop: "28px" }}>
             Welcome to Byuld. Let's build something.
@@ -115,7 +124,35 @@ export default function PersonaSelection() {
           })}
         </div>
 
-        <Button fullWidth size="lg" disabled={!selected} onClick={handleContinue}>
+        {/* Developer language multi-select */}
+        {selected === "developer" && (
+          <div style={{ marginBottom: "28px", padding: "20px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg, animation: "fadeIn 0.2s ease" }}>
+            <div style={{ fontSize: "14px", fontWeight: 600, color: C.white, fontFamily: F.body, marginBottom: "4px" }}>
+              What languages are you familiar with?
+            </div>
+            <div style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body, marginBottom: "14px" }}>
+              Byuld uses these to explain Solidity in terms you already know.
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+              {LANGUAGES.map(l => {
+                const on = langs.includes(l);
+                return (
+                  <button key={l} onClick={() => toggleLang(l)} style={{
+                    padding: "7px 14px", borderRadius: R.full, cursor: "pointer",
+                    fontSize: "13px", fontFamily: F.body, fontWeight: 500,
+                    background: on ? `${C.purple}22` : C.surface2,
+                    border: `1px solid ${on ? C.purple : C.border}`,
+                    color: on ? C.white : C.textMute, transition: "all 0.12s",
+                  }}>
+                    {on ? "✓ " : ""}{l}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <Button fullWidth size="lg" disabled={!canContinue} onClick={handleContinue}>
           Continue
         </Button>
       </div>

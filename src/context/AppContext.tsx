@@ -14,11 +14,11 @@ function loadFromStorage(): Partial<AppState> {
 
 function saveToStorage(state: AppState) {
   try {
-    const { email, walletAddress, isAuthenticated, persona, goal, contractType, chain,
+    const { email, walletAddress, isAuthenticated, persona, programmingLanguages, goal, projectName, contractType, chain,
             tokensUsed, tokensLimit, contractAddress, txHash, deployedAt,
             sections, currentSection, messages } = state;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      email, walletAddress, isAuthenticated, persona, goal, contractType, chain,
+      email, walletAddress, isAuthenticated, persona, programmingLanguages, goal, projectName, contractType, chain,
       tokensUsed, tokensLimit, contractAddress, txHash, deployedAt,
       sections, currentSection, messages,
     }));
@@ -40,9 +40,11 @@ const INITIAL: AppState = {
   walletAddress: persisted.walletAddress ?? "",
   isAuthenticated: persisted.isAuthenticated ?? false,
   persona: persisted.persona ?? null,
+  programmingLanguages: persisted.programmingLanguages ?? [],
   goal: persisted.goal ?? "",
-  contractType: persisted.contractType ?? "",
-  chain: (persisted.chain as Chain) ?? "base",
+  projectName: persisted.projectName ?? "",
+  contractType: persisted.contractType ?? "escrow",
+  chain: (persisted.chain as Chain) ?? "base-sepolia",
   mode: "C",
   sections: persisted.sections && persisted.sections.length ? persisted.sections : INITIAL_SECTIONS,
   messages: persisted.messages ?? [],
@@ -66,8 +68,10 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, isAuthenticated: true, walletAddress: action.walletAddress };
     case "SET_PERSONA":
       return { ...state, persona: action.persona };
+    case "SET_LANGUAGES":
+      return { ...state, programmingLanguages: action.languages };
     case "SET_GOAL":
-      return { ...state, goal: action.goal, contractType: action.contractType };
+      return { ...state, goal: action.goal, contractType: action.contractType, projectName: action.projectName ?? state.projectName };
     case "SET_SECTIONS":
       return { ...state, sections: action.sections, currentSection: 0 };
     case "SET_CHAIN":

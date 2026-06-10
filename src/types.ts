@@ -32,7 +32,9 @@ export interface AppState {
   isAuthenticated: boolean;
   // onboarding
   persona: Persona;
+  programmingLanguages: string[];
   goal: string;
+  projectName: string;
   contractType: string;
   chain: Chain;
   // build
@@ -56,7 +58,8 @@ export type AppAction =
   | { type: "SET_EMAIL"; email: string }
   | { type: "SET_AUTHENTICATED"; walletAddress: string }
   | { type: "SET_PERSONA"; persona: Persona }
-  | { type: "SET_GOAL"; goal: string; contractType: string }
+  | { type: "SET_LANGUAGES"; languages: string[] }
+  | { type: "SET_GOAL"; goal: string; contractType: string; projectName?: string }
   | { type: "SET_SECTIONS"; sections: Section[] }
   | { type: "SET_CHAIN"; chain: Chain }
   | { type: "ADD_MESSAGE"; message: Message }

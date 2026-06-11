@@ -77,6 +77,7 @@ export default function BuildInterface() {
   const [showHowTo, setShowHowTo] = useState(() => {
     try { return !localStorage.getItem("byuld_seen_howto"); } catch { return true; }
   });
+  const [rightTab, setRightTab] = useState<"guide" | "ask">("guide");
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -214,13 +215,19 @@ export default function BuildInterface() {
     }
   }, [sections, currentIdx, persona, deductTokens, addMsg, dispatch, navigate, loadSection]);
 
+  // Typing no longer auto-calls the API. We just track the code and clear any stale
+  // review state. The user reviews deliberately with the "Check my code" button —
+  // no more accidental Claude calls (and burned credits) on every keystroke.
   const handleCodeChange = useCallback((code: string) => {
     codeRef.current = code;
-    dispatch({ type: "SET_MODE", mode: "B" });
     if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => runReview(code), 500);
-  }, [runReview, dispatch]);
+    if (reviewState !== "idle") setReviewState("idle");
+  }, [reviewState]);
+
+  const handleCheck = useCallback(() => {
+    if (aiLoading) return;
+    runReview(codeRef.current);
+  }, [aiLoading, runReview]);
 
   // ── Recheck from the security modal ──────────────────────────────────────────
   const handleRecheck = useCallback(async () => {
@@ -328,28 +335,41 @@ export default function BuildInterface() {
             readOnlyTitle={viewSection?.title ?? null}
             onCloseReadOnly={() => setViewSection(null)}
           />
-          <div style={{ height: "36px", background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 16px", gap: "16px", flexShrink: 0 }}>
+          <div style={{ height: "48px", background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 16px", gap: "14px", flexShrink: 0 }}>
             <ReviewIndicator state={reviewState} />
             <div style={{ flex: 1 }} />
             <span style={{ fontSize: "11px", color: C.textMute, fontFamily: F.mono }}>
               {state.sections.filter(s => s.status === "complete").length}/{state.sections.length} sections
             </span>
-            {allComplete && <Button size="sm" variant="mint" onClick={() => navigate("/review")}>Security Review →</Button>}
+            {allComplete
+              ? <Button size="sm" variant="mint" onClick={() => navigate("/review")}>Security Review →</Button>
+              : <Button size="sm" onClick={handleCheck} disabled={aiLoading}>
+                  {aiLoading ? <><Spinner size={13} color="#fff" /> Checking…</> : "✓ Check my code"}
+                </Button>
+            }
           </div>
         </div>
 
-        <div style={{ flex: "0 0 400px", display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden", borderLeft: `1px solid ${C.border}` }}>
-          {/* Hero: the concrete task for this section */}
-          {sections[currentIdx] && !allComplete && (
-            <div style={{ flex: "0 0 auto", maxHeight: "62%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-              <TaskGuide section={sections[currentIdx]} index={currentIdx} total={sections.length} />
-            </div>
-          )}
-          {/* Secondary: ask if stuck */}
-          <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", minHeight: 0 }}>
-            <div style={{ padding: "10px 16px", fontSize: "11px", color: C.textMute, fontFamily: F.body, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}` }}>
-              Stuck? Ask Byuld
-            </div>
+        {/* Right panel — tabbed: one focus at a time, full-height & readable */}
+        <div style={{ flex: "0 0 440px", display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden", borderLeft: `1px solid ${C.border}`, background: C.surface }}>
+          <div style={{ display: "flex", flexShrink: 0, borderBottom: `1px solid ${C.border}` }}>
+            {([["guide", "📋 Your task"], ["ask", "💬 Ask Byuld"]] as const).map(([id, label]) => (
+              <button key={id} onClick={() => setRightTab(id)} style={{
+                flex: 1, padding: "14px 12px", background: "none", border: "none", cursor: "pointer",
+                borderBottom: `2px solid ${rightTab === id ? C.purple : "transparent"}`,
+                color: rightTab === id ? C.white : C.textMute,
+                fontFamily: F.body, fontSize: "13px", fontWeight: 600, transition: "all 0.15s",
+              }}>{label}</button>
+            ))}
+          </div>
+
+          <div style={{ flex: 1, minHeight: 0, display: rightTab === "guide" ? "flex" : "none", flexDirection: "column" }}>
+            {sections[currentIdx] && !allComplete
+              ? <TaskGuide section={sections[currentIdx]} index={currentIdx} total={sections.length} />
+              : <div style={{ padding: "32px 20px", textAlign: "center", color: C.textMute, fontFamily: F.body, fontSize: "14px" }}>All sections done — run the security review.</div>}
+          </div>
+
+          <div style={{ flex: 1, minHeight: 0, display: rightTab === "ask" ? "flex" : "none", flexDirection: "column" }}>
             <ChatPanel onSend={handleUserMessage} loading={aiLoading} />
           </div>
         </div>

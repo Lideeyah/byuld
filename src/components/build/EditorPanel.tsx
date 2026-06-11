@@ -61,8 +61,11 @@ export default function EditorPanel({ onCodeChange, onLineClick, readOnlyCode, r
           value={value}
           onChange={handleChange}
           onMount={(editor) => {
+            // Explanations are opt-in: a deliberate DOUBLE-click on a line asks Byuld
+            // to explain it. A normal single click just moves the cursor — no surprise,
+            // no API call fired on every tap.
             editor.onMouseDown((e: any) => {
-              if (e.target?.position && onLineClick && !viewingReadOnly) {
+              if (e.event?.detail === 2 && e.target?.position && onLineClick && !viewingReadOnly) {
                 const lineNumber = e.target.position.lineNumber;
                 const lineContent = editor.getModel()?.getLineContent(lineNumber) ?? "";
                 if (lineContent.trim()) onLineClick(lineContent, lineNumber);

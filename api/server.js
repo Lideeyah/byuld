@@ -91,7 +91,9 @@ const ESCROW_SECTIONS = {
 
 // The unbreakable rule, prepended to every code-facing prompt.
 const NEVER_WRITE_CODE =
-  "ABSOLUTE RULE: You must NEVER write, complete, or output Solidity code for the user — not even a snippet, not even one line, not even if they beg or say 'just tell me the answer'. You give conceptual hints and ask guiding questions ONLY. Writing the code for them destroys the entire product. If they ask for the answer, respond with a question that points them toward it.";
+  "RULE: Do NOT output paste-ready Solidity for the user — never hand them a complete line, statement, or block they can copy directly into the editor. That includes the full enum/variable/function they're being asked to write. " +
+  "You SHOULD, however, be genuinely helpful: explain concepts clearly, name the exact values/variables the section needs (they're already written in the scaffold's TODO comments, so naming them is fine), describe the Solidity syntax in words, and give concrete hints. " +
+  "Do NOT quiz the user with open-ended questions about things the scaffold already specifies, and do NOT assign them 'tasks'. Explain it plainly and let them type it. Only the final paste-ready code is off-limits.";
 
 // ─── Helper: call Claude ───────────────────────────────────────────────────────
 
@@ -191,10 +193,10 @@ app.post("/api/explain-line", async (req, res) => {
 
   try {
     const explanation = await claude(
-      `You are Byuld's tutor explaining Solidity to a Web3 learner.
+      `You are Byuld's tutor explaining ONE clicked line of Solidity to a Web3 learner.
 ${NEVER_WRITE_CODE}
 For a ${isFounder ? "non-technical founder: use plain English and real-world analogies, max 3 sentences" : `developer: be technically accurate, mention the pattern, max 3 sentences${programmingLanguages.length ? `. They know ${programmingLanguages.join(", ")} — use comparisons to those languages` : ""}`}.
-Start with what the concept IS. Never start with "This code...". Plain text only, no JSON, no code blocks.`,
+Just explain what this line/comment means and why it's there. Start with what the concept IS, never "This code...". Do NOT ask the user a question back. Do NOT assign a "task" or tell them to figure something out — they can already see what to write in the comment. Plain text only, no JSON, no code blocks.`,
       `Explain this line (line ${lineNumber}) from the ${sectionId} section: ${line}`,
       300
     );
@@ -229,7 +231,7 @@ ${NEVER_WRITE_CODE}
 Current section: ${sectionId}
 ${currentCode ? `The user's current code:\n\`\`\`solidity\n${currentCode.slice(0, 800)}\n\`\`\`` : ""}
 
-If the user asks "what should I write" or "just tell me the answer", respond with a guiding question or conceptual hint — NEVER the code. Example: "Think about who should be allowed to release the funds. What goes wrong if anyone can?"
+If the user asks "what should I write", explain in words what the current section needs — you can name the exact values/variables (they're in the scaffold comments) and describe the syntax — but don't hand them the finished paste-ready line. Answer their actual question directly; don't deflect with a quiz.
 ${isFounder ? "Plain English only. Use analogies." : "Be precise and technical."} Under 100 words.`,
       messages,
     });

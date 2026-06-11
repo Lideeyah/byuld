@@ -20,6 +20,11 @@ export interface EscrowSection {
   solution: string;            // reviewer reference ONLY — never shown to the user
   hint: string;
   securityNote: EscrowSectionSecurityNote | null;
+  // Concrete, beginner-facing guidance: exactly what to type and why it matters.
+  guide: {
+    why: string;                       // plain-English reason this section exists
+    steps: { do: string; code: string }[];  // each step: what to do + the exact line(s) to type
+  };
 }
 
 export const ESCROW_CONTRACT = {
@@ -117,6 +122,15 @@ contract Escrow {
     State public state;`,
       hint: "An enum is like a list of allowed values. A State variable can only ever equal one of those values. An address is a 42-character identifier — like a wallet address.",
       securityNote: null,
+      guide: {
+        why: "These are the building blocks of your escrow — who's in the deal, how much money is held, and what stage it's at. Nothing else can work until they exist.",
+        steps: [
+          { do: "Under the first comment, list the four stages the payment can be in. Type:", code: "enum State { Created, Locked, Released, Disputed }" },
+          { do: "Under the next comment, name the three people in the deal. Type each on its own line:", code: "address public buyer;\naddress public seller;\naddress public arbiter;" },
+          { do: "Track how much ETH is held. Type:", code: "uint256 public amount;" },
+          { do: "Track the current stage. Type:", code: "State public state;" },
+        ],
+      },
     },
     {
       id: "modifiers",
@@ -166,6 +180,14 @@ contract Escrow {
     }`,
       hint: "require() takes two arguments: a condition that must be true, and an error message shown if it is false. msg.sender is the address of whoever is calling this function right now.",
       securityNote: null,
+      guide: {
+        why: "These are the locks on your contract's doors. They decide who is allowed to do what. Without them, anyone could release your funds to the wrong person.",
+        steps: [
+          { do: "Inside onlyBuyer, only let the buyer through. Type:", code: 'require(msg.sender == buyer, "Only buyer can call this");' },
+          { do: "Inside onlyArbiter, only let the referee through. Type:", code: 'require(msg.sender == arbiter, "Only arbiter can call this");' },
+          { do: "Inside inState, only allow the action at the right stage. Type:", code: 'require(state == _state, "Invalid state for this action");' },
+        ],
+      },
     },
     {
       id: "deposit",
@@ -192,6 +214,13 @@ contract Escrow {
     }`,
       hint: "msg.value is the amount of ETH sent with the function call. State.Locked means funds are now held inside the contract.",
       securityNote: null,
+      guide: {
+        why: "This is how the buyer puts money in. After it runs, the funds are locked safely inside the contract until the deal is settled.",
+        steps: [
+          { do: "Record how much ETH the buyer just sent. Type:", code: "amount = msg.value;" },
+          { do: "Move the contract into the Locked stage. Type:", code: "state = State.Locked;" },
+        ],
+      },
     },
     {
       id: "resolution",
@@ -232,6 +261,15 @@ contract Escrow {
         payable(buyer).transfer(amount);
     }`,
       hint: "Update state BEFORE transferring ETH. The state change must happen first. This prevents reentrancy attacks where an attacker calls the function again before the balance updates.",
+      guide: {
+        why: "These two functions move the money. The ORDER matters more than anything in this whole contract: always change the stage BEFORE sending ETH, or an attacker can drain everything.",
+        steps: [
+          { do: "In release — first mark the deal as Released. Type:", code: "state = State.Released;" },
+          { do: "Then (after the state change) send the money to the seller. Type:", code: "payable(seller).transfer(amount);" },
+          { do: "In dispute — first mark the deal as Disputed. Type:", code: "state = State.Disputed;" },
+          { do: "Then refund the buyer. Type:", code: "payable(buyer).transfer(amount);" },
+        ],
+      },
       securityNote: {
         severity: "critical",
         title: "Reentrancy Vulnerability Risk",

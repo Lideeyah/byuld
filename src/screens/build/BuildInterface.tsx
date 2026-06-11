@@ -5,6 +5,8 @@ import BuildTopBar from "../../components/layout/BuildTopBar";
 import BuildSidebar from "../../components/layout/BuildSidebar";
 import EditorPanel from "../../components/build/EditorPanel";
 import ChatPanel from "../../components/build/ChatPanel";
+import TaskGuide from "../../components/build/TaskGuide";
+import HowItWorks from "../../components/build/HowItWorks";
 import Button from "../../components/ui/Button";
 import Spinner from "../../components/ui/Spinner";
 import { useApp, UNLIMITED_TOKENS } from "../../context/AppContext";
@@ -64,6 +66,9 @@ export default function BuildInterface() {
   const [securityBlock, setSecurityBlock] = useState<SecurityIssue | null>(null);
   const [recheckLoading, setRecheckLoading] = useState(false);
   const [viewSection, setViewSection] = useState<{ code: string; title: string } | null>(null);
+  const [showHowTo, setShowHowTo] = useState(() => {
+    try { return !localStorage.getItem("byuld_seen_howto"); } catch { return true; }
+  });
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -283,6 +288,12 @@ export default function BuildInterface() {
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden" }}>
+      {showHowTo && (
+        <HowItWorks onClose={() => {
+          try { localStorage.setItem("byuld_seen_howto", "1"); } catch { /* ignore */ }
+          setShowHowTo(false);
+        }} />
+      )}
       {securityBlock && <SecurityBlockModal issue={securityBlock} onRecheck={handleRecheck} checking={recheckLoading} />}
 
       <BuildTopBar />
@@ -315,8 +326,20 @@ export default function BuildInterface() {
           </div>
         </div>
 
-        <div style={{ flex: "0 0 380px", display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-          <ChatPanel onSend={handleUserMessage} loading={aiLoading} />
+        <div style={{ flex: "0 0 400px", display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden", borderLeft: `1px solid ${C.border}` }}>
+          {/* Hero: the concrete task for this section */}
+          {sections[currentIdx] && !allComplete && (
+            <div style={{ flex: "0 0 auto", maxHeight: "62%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              <TaskGuide section={sections[currentIdx]} index={currentIdx} total={sections.length} />
+            </div>
+          )}
+          {/* Secondary: ask if stuck */}
+          <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", minHeight: 0 }}>
+            <div style={{ padding: "10px 16px", fontSize: "11px", color: C.textMute, fontFamily: F.body, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}` }}>
+              Stuck? Ask Byuld
+            </div>
+            <ChatPanel onSend={handleUserMessage} loading={aiLoading} />
+          </div>
         </div>
       </div>
     </div>

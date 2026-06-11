@@ -14,13 +14,21 @@ import { getSections, getSectionDef } from "../../lib/contracts";
 import type { SecurityIssue } from "../../types";
 
 async function api<T>(endpoint: string, body: object): Promise<T> {
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`API error ${res.status}`);
-  return res.json();
+  // Generous timeout: the API may be waking from sleep (Render cold start).
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 90_000);
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    return res.json();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ─── Security Block Modal (critical issue — cannot dismiss) ────────────────────
@@ -128,6 +136,9 @@ export default function BuildInterface() {
     if (!state.goal) { navigate("/onboarding/goal"); return; }
     initialized.current = true;
 
+    // Proactively wake the API (Render free tier sleeps) so the first review is instant.
+    fetch("/api/health").catch(() => {});
+
     if (state.messages.length === 0) {
       // Fresh build — post welcome + intro + load scaffold
       loadSection(currentIdx, true);
@@ -197,6 +208,7 @@ export default function BuildInterface() {
       }
     } catch {
       setReviewState("idle");
+      addMsg("byuld", "I couldn't reach the reviewer just now — the server may have been waking up. Give it a few seconds, then make a tiny edit (or press space) to try again.");
     } finally {
       setAiLoading(false);
     }

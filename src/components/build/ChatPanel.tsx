@@ -49,7 +49,7 @@ function parseInline(text: string): React.ReactNode[] {
 }
 
 export default function ChatPanel({ onSend, loading, streamingContent, decisionSlot }: Props) {
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -69,13 +69,27 @@ export default function ChatPanel({ onSend, loading, streamingContent, decisionS
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg, borderLeft: `1px solid ${C.border}` }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg }}>
+      {/* Clear chats */}
+      {state.messages.length > 0 && (
+        <div style={{ flexShrink: 0, display: "flex", justifyContent: "flex-end", padding: "8px 12px 0" }}>
+          <button
+            onClick={() => dispatch({ type: "CLEAR_MESSAGES" })}
+            style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: R.full, color: C.textMute, fontFamily: F.body, fontSize: "11px", padding: "4px 12px", cursor: "pointer" }}
+            onMouseEnter={e => (e.currentTarget.style.color = C.textSec)}
+            onMouseLeave={e => (e.currentTarget.style.color = C.textMute)}
+          >
+            Clear chat
+          </button>
+        </div>
+      )}
+
       {/* Messages */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
         {state.messages.length === 0 && !streamingContent && (
           <div style={{ textAlign: "center", padding: "40px 20px" }}>
             <div style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body, lineHeight: 1.6 }}>
-              Byuld is reading your goal and preparing your scaffold.
+              Ask Byuld anything about your code, or tap the <span style={{ color: C.purple }}>?</span> on a line in the editor.
             </div>
           </div>
         )}

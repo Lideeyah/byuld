@@ -82,6 +82,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, chain: action.chain };
     case "ADD_MESSAGE":
       return { ...state, messages: [...state.messages, action.message] };
+    case "CLEAR_MESSAGES":
+      return { ...state, messages: [] };
     case "SET_MODE":
       return { ...state, mode: action.mode };
     case "UPDATE_SECTION_CODE": {

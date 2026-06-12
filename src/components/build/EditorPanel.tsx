@@ -22,14 +22,17 @@ const CHIPS = [
 interface Anchor { x: number; y: number; line: string; lineNumber: number; }
 
 // ─── Floating "?" button + popover, rendered via portal over the editor ─────────
-function InlineHelp({ anchor, onAsk, onClose }: {
+function InlineHelp({ anchor, onAsk, onClose, onOpenChange }: {
   anchor: Anchor;
   onAsk: (question: string) => void;
   onClose: () => void;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const popRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { onOpenChange?.(open); }, [open]);
 
   // Close popover on outside click / Escape
   useEffect(() => {
@@ -56,11 +59,11 @@ function InlineHelp({ anchor, onAsk, onClose }: {
         onClick={() => setOpen(v => !v)}
         style={{
           position: "fixed", left: anchor.x, top: anchor.y, zIndex: 10000,
-          width: "28px", height: "28px", borderRadius: "50%",
+          width: "20px", height: "20px", borderRadius: "50%",
           background: C.purple, border: "none", cursor: "pointer",
-          color: "#fff", fontSize: "15px", fontWeight: 700, fontFamily: F.body,
+          color: "#fff", fontSize: "12px", fontWeight: 700, fontFamily: F.body, lineHeight: 1,
           display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 2px 10px rgba(123,92,240,0.5)",
+          boxShadow: "0 2px 8px rgba(123,92,240,0.45)", opacity: 0.9,
         }}
         aria-label="Ask about this line"
       >?</button>
@@ -121,6 +124,8 @@ export default function EditorPanel({ onCodeChange, onAskLine, readOnlyCode, rea
 
   const editorRef = useRef<any>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastLine = useRef<number>(-1);     // dedupe: only move when the LINE changes
+  const pinnedRef = useRef(false);         // when the popover is open, freeze the button
   const [anchor, setAnchor] = useState<Anchor | null>(null);
 
   const handleChange = (value: string | undefined) => {
@@ -130,24 +135,32 @@ export default function EditorPanel({ onCodeChange, onAskLine, readOnlyCode, rea
     onCodeChange?.(code);
   };
 
-  // Position the floating "?" next to the hovered/selected line — no API call here.
+  // Pin the "?" to the RIGHT MARGIN of the hovered line — stable x for every line,
+  // out of the way of the code, and it only repositions when the line changes (no jitter).
   const showAt = useCallback((lineNumber: number) => {
+    if (pinnedRef.current) return;                 // popover open → don't move
     const editor = editorRef.current;
     if (!editor || viewingReadOnly) return;
     const lineContent = editor.getModel()?.getLineContent(lineNumber) ?? "";
-    if (!lineContent.trim()) { setAnchor(null); return; }
+    if (!lineContent.trim()) { return; }           // blank line → keep current, don't flicker
+    if (lineNumber === lastLine.current && anchor) {
+      // same line — just refresh the hide timer, don't re-render position
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      hideTimer.current = setTimeout(() => { lastLine.current = -1; setAnchor(null); }, 2500);
+      return;
+    }
     const node = editor.getDomNode();
     if (!node) return;
     const rect = node.getBoundingClientRect();
-    const col = Math.max(1, lineContent.length + 1);
-    const vis = editor.getScrolledVisiblePosition({ lineNumber, column: col });
+    const vis = editor.getScrolledVisiblePosition({ lineNumber, column: 1 });
     if (!vis) return;
-    const x = Math.min(rect.left + vis.left + 12, rect.right - 36);
-    const y = rect.top + vis.top - 2;
+    lastLine.current = lineNumber;
+    const x = rect.right - 30;                      // fixed right-margin position
+    const y = rect.top + vis.top + 1;
     setAnchor({ x, y, line: lineContent, lineNumber });
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => setAnchor(null), 3000);
-  }, [viewingReadOnly]);
+    hideTimer.current = setTimeout(() => { lastLine.current = -1; setAnchor(null); }, 2500);
+  }, [viewingReadOnly, anchor]);
 
   const value = viewingReadOnly ? readOnlyCode! : (currentSec?.code ?? "");
   const headerLabel = viewingReadOnly ? readOnlyTitle : currentSec?.title;
@@ -180,13 +193,19 @@ export default function EditorPanel({ onCodeChange, onAskLine, readOnlyCode, rea
           onChange={handleChange}
           onMount={(editor) => {
             editorRef.current = editor;
-            // Hover → show the floating "?" (no API call, just UI)
+            // Hover → show the floating "?" on the line's right margin (no API call).
             editor.onMouseMove((e: any) => {
               if (e.target?.position) showAt(e.target.position.lineNumber);
             });
-            // Highlight/selection → also anchor the "?" to the selection line
+            // Only show on selection (highlight), not on plain cursor moves while typing.
             editor.onDidChangeCursorSelection((e: any) => {
               if (!e.selection.isEmpty()) showAt(e.selection.positionLineNumber);
+            });
+            // Leaving the editor hides the button (unless the popover is pinned open).
+            editor.onMouseLeave?.(() => {
+              if (pinnedRef.current) return;
+              if (hideTimer.current) clearTimeout(hideTimer.current);
+              hideTimer.current = setTimeout(() => { lastLine.current = -1; setAnchor(null); }, 400);
             });
           }}
           options={{
@@ -234,7 +253,8 @@ export default function EditorPanel({ onCodeChange, onAskLine, readOnlyCode, rea
       {anchor && onAskLine && (
         <InlineHelp
           anchor={anchor}
-          onClose={() => setAnchor(null)}
+          onOpenChange={(open) => { pinnedRef.current = open; }}
+          onClose={() => { pinnedRef.current = false; lastLine.current = -1; setAnchor(null); }}
           onAsk={(question) => onAskLine(question, anchor.line, anchor.lineNumber)}
         />
       )}

@@ -63,6 +63,7 @@ export type AppAction =
   | { type: "SET_SECTIONS"; sections: Section[] }
   | { type: "SET_CHAIN"; chain: Chain }
   | { type: "ADD_MESSAGE"; message: Message }
+  | { type: "CLEAR_MESSAGES" }
   | { type: "SET_MODE"; mode: BuildMode }
   | { type: "UPDATE_SECTION_CODE"; id: string; code: string }
   | { type: "COMPLETE_SECTION"; id: string }

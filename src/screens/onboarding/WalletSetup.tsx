@@ -12,7 +12,7 @@ const STEPS = ["You", "Wallet", "Chain", "Goal", "Review"];
 
 const FACTS = [
   { icon: "◉", text: "Your wallet address is public — it works like a username on the blockchain." },
-  { icon: "◈", text: "You'll need a small amount of test ETH to deploy. Byuld gets it for you from a testnet faucet — no real money." },
+  { icon: "◈", text: "Deploying costs a tiny network fee on the testnet. Byuld covers that for you automatically — no real money, and nothing for you to set up." },
   { icon: "⬡", text: "Your wallet is secured by Privy. You can export it to a standard wallet app later." },
 ];
 

@@ -23,28 +23,28 @@ export default function GoalCapture() {
   const { state, dispatch } = useApp();
   const [goal, setGoal] = useState("");
   const [showExamples, setShowExamples] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const loading = false;
 
   const canContinue = goal.trim().length >= 15;
 
-  const handleContinue = async () => {
+  const handleContinue = () => {
     if (!canContinue || loading) return;
-    setLoading(true);
-    try {
-      // V1: every goal maps to escrow. Personalise the framing for the review screen.
-      const res = await fetch("/api/classify-goal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal: goal.trim(), persona: state.persona ?? "founder" }),
-      });
-      const data = res.ok ? await res.json() : null;
-      if (data) sessionStorage.setItem("byuld_intent", JSON.stringify(data));
-      dispatch({ type: "SET_GOAL", goal: goal.trim(), contractType: "escrow", projectName: data?.projectName ?? "" });
-    } catch {
-      dispatch({ type: "SET_GOAL", goal: goal.trim(), contractType: "escrow" });
-    }
-    setLoading(false);
+    const g = goal.trim();
+    // V1: every goal maps to escrow — no need to WAIT on the API to move forward.
+    // Set a sensible name now, navigate instantly, and personalise in the background.
+    const fallbackName = g.length > 42 ? g.slice(0, 42) + "…" : g.charAt(0).toUpperCase() + g.slice(1);
+    sessionStorage.removeItem("byuld_intent");
+    dispatch({ type: "SET_GOAL", goal: g, contractType: "escrow", projectName: fallbackName });
     navigate("/onboarding/review");
+
+    // Fire-and-forget: enrich the project name/description for the review screen.
+    fetch("/api/classify-goal", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ goal: g, persona: state.persona ?? "founder" }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) sessionStorage.setItem("byuld_intent", JSON.stringify(data)); })
+      .catch(() => {});
   };
 
   return (

@@ -179,8 +179,9 @@ export default function BuildInterface() {
         addMsg("byuld", res.message);  // hint only — never code
       }
     } catch {
-      setReviewState("idle");
-      addMsg("byuld", "I couldn't reach the reviewer just now — the server may have been waking up. Give it a few seconds, then make a tiny edit (or press space) to try again.");
+      setReviewState("rejected");
+      setRightTab("ask");   // surface the error in chat so it's not silently nothing
+      addMsg("byuld", "⚠ I couldn't reach the reviewer just now. The AI service may be waking up or temporarily unavailable. Wait a few seconds and press **Check my code** again.");
     } finally {
       setAiLoading(false);
     }

@@ -5,6 +5,8 @@ import { C, F, R } from "../tokens";
 import Logo from "../components/layout/Logo";
 import Button from "../components/ui/Button";
 import Spinner from "../components/ui/Spinner";
+import { useApp } from "../context/AppContext";
+import { getSections } from "../lib/contracts";
 
 const BROKEN = `function release() public onlyBuyer inState(State.Locked) {
     payable(seller).transfer(amount);
@@ -58,6 +60,10 @@ const inputStyle: React.CSSProperties = {
 
 export default function Comprehension() {
   const navigate = useNavigate();
+  const { state } = useApp();
+  const isDev = state.persona === "developer";
+  const recapSections = getSections();
+  const [showRecap, setShowRecap] = useState(false);
   const [part, setPart] = useState(1);          // current open part
   const [loading, setLoading] = useState(false);
 
@@ -123,6 +129,37 @@ export default function Comprehension() {
           <p style={{ fontSize: "15px", color: C.textSec, fontFamily: F.body }}>
             Prove you understand what you built. All three parts are required.
           </p>
+        </div>
+
+        {/* Learn, don't cheat: a concept recap of what they just built. No gate answers. */}
+        <div style={{ marginBottom: "24px" }}>
+          <button onClick={() => setShowRecap(v => !v)} style={{
+            width: "100%", padding: "14px 18px", background: showRecap ? C.surface : "transparent",
+            border: `1px solid ${C.border}`, borderRadius: R.lg, cursor: "pointer",
+            color: C.textSec, fontFamily: F.body, fontSize: "14px", fontWeight: 600,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            borderBottomLeftRadius: showRecap ? 0 : R.lg, borderBottomRightRadius: showRecap ? 0 : R.lg,
+          }}>
+            <span>📖 Not sure? Refresh what your contract does (no answers given)</span>
+            <span style={{ transform: showRecap ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
+          </button>
+          {showRecap && (
+            <div style={{ border: `1px solid ${C.border}`, borderTop: "none", borderBottomLeftRadius: R.lg, borderBottomRightRadius: R.lg, overflow: "hidden" }}>
+              {recapSections.map((s, i) => (
+                <div key={s.id} style={{ padding: "16px 18px", background: C.surface, borderBottom: i < recapSections.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: C.white, fontFamily: F.body, marginBottom: "5px" }}>
+                    {i + 1}. {s.title}
+                  </div>
+                  <p style={{ fontSize: "13px", color: C.textSec, fontFamily: F.body, lineHeight: 1.6, margin: 0 }}>
+                    {isDev ? s.developerExplanation : s.founderExplanation}
+                  </p>
+                </div>
+              ))}
+              <div style={{ padding: "12px 18px", background: `${C.purple}0E`, fontSize: "12px", color: C.textMute, fontFamily: F.body, lineHeight: 1.5 }}>
+                This explains the concepts so you can answer in your own words — it doesn't give you the answers to the checks below.
+              </div>
+            </div>
+          )}
         </div>
 
         {/* PART 1 — Summarise */}

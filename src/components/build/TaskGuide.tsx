@@ -5,16 +5,37 @@ interface Props {
   section: EscrowSection;
   index: number;   // 0-based
   total: number;
+  persona?: "founder" | "developer";
+  languages?: string[];
 }
+
+// Block copy/cut/right-click so the user can't paste the answer — they must type it.
+const noCopy = {
+  onCopy: (e: React.ClipboardEvent) => e.preventDefault(),
+  onCut: (e: React.ClipboardEvent) => e.preventDefault(),
+  onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+  onDragStart: (e: React.DragEvent) => e.preventDefault(),
+  style: {} as React.CSSProperties,
+};
+const unselectable: React.CSSProperties = {
+  userSelect: "none", WebkitUserSelect: "none", MozUserSelect: "none", msUserSelect: "none",
+};
 
 // The single most important element on the build screen: a plain-English,
 // concrete "do this now" guide for the current section — what to type and why.
-export default function TaskGuide({ section, index, total }: Props) {
+export default function TaskGuide({ section, index, total, persona = "founder", languages = [] }: Props) {
   const { guide } = section;
+  const isDev = persona === "developer";
+  // Developers get the technical framing; founders get the plain-English "why".
+  const why = isDev ? section.developerExplanation : guide.why;
+  const langNote = isDev && languages.length
+    ? `You know ${languages.join(", ")} — think of an enum like a fixed set of named constants, and modifiers like middleware that runs before the function body.`
+    : null;
+
   return (
-    <div style={{ padding: "20px", borderBottom: `1px solid ${C.border}`, background: C.surface, overflowY: "auto" }}>
+    <div style={{ padding: "20px", background: C.surface, overflowY: "auto" }}>
       <div style={{ fontSize: "11px", color: C.purple, fontFamily: F.body, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-        Step {index + 1} of {total}
+        Step {index + 1} of {total}{isDev && languages.length ? ` · ${languages[0]} background` : ""}
       </div>
       <h2 style={{ fontSize: "18px", fontWeight: 700, fontFamily: F.display, color: C.white, marginBottom: "8px" }}>
         {section.title}
@@ -22,8 +43,15 @@ export default function TaskGuide({ section, index, total }: Props) {
 
       {/* Why it matters */}
       <div style={{ padding: "12px 14px", background: `${C.purple}0E`, border: `1px solid ${C.purple}22`, borderRadius: R.md, marginBottom: "18px" }}>
-        <div style={{ fontSize: "10px", color: C.purple, fontFamily: F.body, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "5px" }}>Why this matters</div>
-        <p style={{ fontSize: "13px", color: C.textSec, fontFamily: F.body, lineHeight: 1.55, margin: 0 }}>{guide.why}</p>
+        <div style={{ fontSize: "10px", color: C.purple, fontFamily: F.body, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "5px" }}>
+          {isDev ? "What this does" : "Why this matters"}
+        </div>
+        <p style={{ fontSize: "13px", color: C.textSec, fontFamily: F.body, lineHeight: 1.55, margin: 0 }}>{why}</p>
+        {langNote && (
+          <p style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body, lineHeight: 1.5, margin: "8px 0 0", paddingTop: "8px", borderTop: `1px solid ${C.purple}22` }}>
+            {langNote}
+          </p>
+        )}
       </div>
 
       {/* Concrete steps */}
@@ -38,7 +66,11 @@ export default function TaskGuide({ section, index, total }: Props) {
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: "13px", color: C.textSec, fontFamily: F.body, lineHeight: 1.5, marginBottom: "6px" }}>{s.do}</div>
-              <pre style={{ margin: 0, padding: "10px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: R.md, fontFamily: F.mono, fontSize: "12.5px", color: C.mint, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              {/* Un-copyable: you have to type it yourself */}
+              <pre
+                {...noCopy}
+                style={{ margin: 0, padding: "10px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: R.md, fontFamily: F.mono, fontSize: "12.5px", color: C.mint, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word", ...unselectable }}
+              >
                 {s.code}
               </pre>
             </div>
@@ -47,7 +79,7 @@ export default function TaskGuide({ section, index, total }: Props) {
       </div>
 
       <p style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body, lineHeight: 1.5, marginTop: "16px" }}>
-        Type each line yourself in the editor — that's how it sticks. When you're done, pause and Byuld checks it. Stuck on anything? Ask below.
+        Type each line yourself — you can't copy it, and that's on purpose. Typing it is how it sticks. When you're done, hit <strong style={{ color: C.textSec }}>Check my code</strong>. Stuck? Ask Byuld.
       </p>
     </div>
   );

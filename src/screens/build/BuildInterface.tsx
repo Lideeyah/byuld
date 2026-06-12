@@ -172,7 +172,7 @@ export default function BuildInterface() {
     try {
       const res = await api<{ passed: boolean; type: string; message: string; severity: string | null; tokensUsed: number }>(
         "/api/review-section",
-        { sectionId: def.id, userCode: code, persona, programmingLanguages: [] }
+        { sectionId: def.id, userCode: code, persona, programmingLanguages: state.programmingLanguages }
       );
       deductTokens(res.tokensUsed);
 
@@ -237,7 +237,7 @@ export default function BuildInterface() {
     try {
       const res = await api<{ passed: boolean; type: string; message: string; severity: string | null; tokensUsed: number }>(
         "/api/review-section",
-        { sectionId: def.id, userCode: codeRef.current, persona, programmingLanguages: [] }
+        { sectionId: def.id, userCode: codeRef.current, persona, programmingLanguages: state.programmingLanguages }
       );
       deductTokens(res.tokensUsed);
       if (res.type === "security_issue" && res.severity === "critical") {
@@ -268,7 +268,7 @@ export default function BuildInterface() {
     setAiLoading(true);
     try {
       const res = await api<{ explanation: string; tokensUsed: number }>("/api/explain-line", {
-        line, lineNumber, sectionId: def?.id, persona, programmingLanguages: [],
+        line, lineNumber, sectionId: def?.id, persona, programmingLanguages: state.programmingLanguages,
       });
       addMsg("byuld", res.explanation);
       deductTokens(res.tokensUsed);
@@ -365,7 +365,7 @@ export default function BuildInterface() {
 
           <div style={{ flex: 1, minHeight: 0, display: rightTab === "guide" ? "flex" : "none", flexDirection: "column" }}>
             {sections[currentIdx] && !allComplete
-              ? <TaskGuide section={sections[currentIdx]} index={currentIdx} total={sections.length} />
+              ? <TaskGuide section={sections[currentIdx]} index={currentIdx} total={sections.length} persona={persona} languages={state.programmingLanguages} />
               : <div style={{ padding: "32px 20px", textAlign: "center", color: C.textMute, fontFamily: F.body, fontSize: "14px" }}>All sections done — run the security review.</div>}
           </div>
 

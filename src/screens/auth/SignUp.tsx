@@ -1,105 +1,136 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePrivy, useLoginWithEmail, useConnectWallet } from "@privy-io/react-auth";
-import { C, F, R } from "../../tokens";
+import { C, F } from "../../tokens";
 import Logo from "../../components/layout/Logo";
-import Button from "../../components/ui/Button";
-import Input from "../../components/ui/Input";
-import Divider from "../../components/ui/Divider";
+import Spinner from "../../components/ui/Spinner";
 import { useApp } from "../../context/AppContext";
 
-type Tab = "signup" | "login";
 function isValidEmail(e: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
 
 export default function SignUp() {
-  const navigate     = useNavigate();
+  const navigate = useNavigate();
   const { dispatch } = useApp();
   const { authenticated } = usePrivy();
-  const { sendCode }  = useLoginWithEmail();
+  const { sendCode } = useLoginWithEmail();
   const { connectWallet } = useConnectWallet({
     onSuccess({ wallet }) {
       dispatch({ type: "SET_AUTHENTICATED", walletAddress: wallet.address });
-      // Returning user → dashboard. New user → onboarding.
-      const hasOnboarded = !!localStorage.getItem("byuld_session") &&
-        JSON.parse(localStorage.getItem("byuld_session") || "{}").persona;
-      navigate(hasOnboarded ? "/dashboard" : "/onboarding/persona");
+      navigate("/onboarding/persona");
     },
-    onError(err) { setError(String(err)); },
+    onError() { setError("Something went wrong. Please try again."); },
   });
 
-  const [tab, setTab]       = useState<Tab>("signup");
-  const [email, setEmail]   = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError]   = useState("");
+  const [error, setError] = useState("");
+  const [focused, setFocused] = useState(false);
 
   useEffect(() => { if (authenticated) navigate("/onboarding/persona"); }, [authenticated]);
 
+  const valid = isValidEmail(email);
+
   const handleSubmit = async () => {
-    if (!isValidEmail(email) || loading) return;
+    if (!valid || loading) return;
+    if (!isValidEmail(email)) { setError("Please enter a valid email address"); return; }
     setLoading(true); setError("");
     try {
       dispatch({ type: "SET_EMAIL", email });
       await sendCode({ email });
       navigate("/check-email");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to send code. Try again.");
+    } catch {
+      setError("Something went wrong. Please try again.");
     } finally { setLoading(false); }
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
       <div style={{ position: "absolute", top: "24px", left: "32px" }}>
         <button onClick={() => navigate("/")} style={{ background: "none", border: "none", color: C.textMute, cursor: "pointer", fontFamily: F.body, fontSize: "13px" }}>← Back</button>
       </div>
-      <div style={{ width: "100%", maxWidth: "400px" }}>
-        <div style={{ textAlign: "center", marginBottom: "40px" }}>
+
+      <div style={{ width: "100%", maxWidth: "420px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: "16px", padding: "40px" }}>
+        {/* Logo */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "24px" }}>
           <Logo size="md" />
-          <p style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body, marginTop: "12px" }}>
-            {tab === "signup" ? "Create your account — it's free." : "Welcome back."}
-          </p>
         </div>
-        <div style={{ display: "flex", background: C.surface2, borderRadius: R.md, padding: "3px", marginBottom: "28px" }}>
-          {([["signup", "Sign Up"], ["login", "Log In"]] as [Tab, string][]).map(([id, label]) => (
-            <button key={id} onClick={() => { setTab(id as Tab); setError(""); }} style={{
-              flex: 1, padding: "8px 16px", fontFamily: F.body, fontSize: "13px", fontWeight: 600,
-              background: tab === id ? C.surface : "transparent",
-              color: tab === id ? C.white : C.textMute,
-              border: tab === id ? `1px solid ${C.border}` : "1px solid transparent",
-              borderRadius: "6px", cursor: "pointer", transition: "all 0.15s",
-            }}>{label}</button>
-          ))}
+
+        <h1 style={{ fontSize: "24px", fontWeight: 700, fontFamily: F.display, color: C.white, textAlign: "center", marginBottom: "8px" }}>
+          Create your account
+        </h1>
+        <p style={{ fontSize: "14px", color: C.textSec, fontFamily: F.body, textAlign: "center", lineHeight: 1.55, marginBottom: "28px" }}>
+          Enter your email to get started. We'll create your Web3 wallet automatically.
+        </p>
+
+        {/* Email field */}
+        <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: C.textSec, fontFamily: F.body, marginBottom: "8px" }}>
+          Email address
+        </label>
+        <input
+          type="email"
+          value={email}
+          onChange={e => { setEmail(e.target.value); setError(""); }}
+          onKeyDown={e => e.key === "Enter" && handleSubmit()}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder="you@example.com"
+          autoFocus
+          style={{
+            width: "100%", boxSizing: "border-box",
+            background: C.surface2, border: `1px solid ${error ? C.danger : focused ? C.purple : C.border}`,
+            borderRadius: "8px", padding: "12px 16px",
+            color: C.white, fontFamily: F.body, fontSize: "14px", outline: "none",
+            transition: "border-color 0.15s",
+          }}
+        />
+        {error && <p style={{ fontSize: "12px", color: C.danger, fontFamily: F.body, marginTop: "8px" }}>{error}</p>}
+
+        {/* Primary button */}
+        <button
+          onClick={handleSubmit}
+          disabled={!valid || loading}
+          style={{
+            width: "100%", marginTop: "16px",
+            background: C.purple, border: "none", borderRadius: "8px", padding: "14px",
+            color: C.white, fontFamily: F.body, fontSize: "15px", fontWeight: 600,
+            cursor: !valid || loading ? "not-allowed" : "pointer",
+            opacity: !valid || loading ? 0.55 : 1, transition: "opacity 0.15s",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+          }}
+        >
+          {loading ? <><Spinner size={15} color="#fff" /> Sending…</> : "Send magic link"}
+        </button>
+
+        {/* Divider */}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "24px 0" }}>
+          <div style={{ flex: 1, height: "1px", background: C.border }} />
+          <span style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>or</span>
+          <div style={{ flex: 1, height: "1px", background: C.border }} />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <Input label="Email address" type="email" placeholder="you@example.com" value={email}
-            onChange={e => { setEmail(e.target.value); setError(""); }}
-            onKeyDown={e => e.key === "Enter" && handleSubmit()}
-            error={error} autoFocus />
-          <Button fullWidth onClick={handleSubmit} disabled={!isValidEmail(email) || loading}>
-            {loading ? "Sending code…" : "Send sign-in code"}
-          </Button>
-          {tab === "signup" && (<>
-            <Divider label="or" />
-            <button onClick={() => connectWallet()} style={{
-              width: "100%", padding: "10px 20px", background: "transparent",
-              border: `1px solid ${C.border}`, borderRadius: R.md,
-              color: C.textSec, fontFamily: F.body, fontSize: "14px", fontWeight: 600,
-              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
-              transition: "border-color 0.15s",
-            }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = C.purple)}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = C.border)}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M21.315 5.1L13.41 11.07l1.47-3.465L21.315 5.1z" fill="#E2761B" />
-                <path d="M2.685 5.1l7.845 6.03-1.395-3.525L2.685 5.1z" fill="#E4761B" />
-              </svg>
-              Connect MetaMask
-            </button>
-          </>)}
-          <p style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, textAlign: "center", lineHeight: 1.5 }}>
-            By continuing you agree to Byuld's <span style={{ color: C.purple, cursor: "pointer" }}>Terms of Service</span> and <span style={{ color: C.purple, cursor: "pointer" }}>Privacy Policy</span>.
-          </p>
-        </div>
+
+        {/* MetaMask */}
+        <button
+          onClick={() => { setError(""); connectWallet(); }}
+          style={{
+            width: "100%", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: "8px",
+            padding: "14px", color: C.textSec, fontFamily: F.body, fontSize: "15px", fontWeight: 600,
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
+            transition: "border-color 0.15s",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = C.purple)}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = C.border)}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M21.315 5.1L13.41 11.07l1.47-3.465L21.315 5.1z" fill="#E2761B" />
+            <path d="M2.685 5.1l7.845 6.03-1.395-3.525L2.685 5.1z" fill="#E4761B" />
+          </svg>
+          Connect MetaMask instead
+        </button>
+
+        {/* Fine print */}
+        <p style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body, textAlign: "center", marginTop: "24px", lineHeight: 1.5 }}>
+          By continuing you agree to Byuld's <span style={{ color: C.purple, cursor: "pointer" }}>Terms of Service</span>
+        </p>
       </div>
     </div>
   );

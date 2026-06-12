@@ -210,7 +210,7 @@ Just explain what this line/comment means and why it's there. Start with what th
 // Freeform questions. NEVER writes code. Token cost: 3
 
 app.post("/api/chat", async (req, res) => {
-  const { message, sectionId, currentCode, persona, chatHistory = [] } = req.body;
+  const { message, sectionId, currentCode, persona, line, chatHistory = [] } = req.body;
   const isFounder = persona === "founder";
 
   const messages = [
@@ -230,6 +230,7 @@ ${NEVER_WRITE_CODE}
 
 Current section: ${sectionId}
 ${currentCode ? `The user's current code:\n\`\`\`solidity\n${currentCode.slice(0, 800)}\n\`\`\`` : ""}
+${line ? `The user is asking about this specific line of code: ${line}. Answer in the context of their escrow contract and their specific goal.` : ""}
 
 If the user asks "what should I write", explain in words what the current section needs — you can name the exact values/variables (they're in the scaffold comments) and describe the syntax — but don't hand them the finished paste-ready line. Answer their actual question directly; don't deflect with a quiz.
 ${isFounder ? "Plain English only. Use analogies." : "Be precise and technical."} Under 100 words.`,

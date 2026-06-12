@@ -101,12 +101,13 @@ export default function BuildInterface() {
     if (after >= state.tokensLimit) navigate("/build/tokens");
   }, [state.tokensUsed, state.tokensLimit, dispatch, navigate]);
 
-  // ── Load a section into the editor (HARDCODED scaffold — no AI) + intro chat ──
-  const loadSection = useCallback((idx: number, isFirst: boolean) => {
+  // ── Load a section's scaffold into the editor. SILENT — posts nothing to chat
+  //    and fires no API call. All guidance lives in the Task panel; the chat only
+  //    ever speaks when the user initiates (ask, send, or Check my code).
+  const loadSection = useCallback((idx: number) => {
     const def = sections[idx];
     if (!def) return;
     const stateSec = state.sections[idx];
-    // Only preload the scaffold if the user hasn't written anything yet
     if (stateSec && (!stateSec.code || !stateSec.code.trim())) {
       dispatch({ type: "UPDATE_SECTION_CODE", id: stateSec.id, code: def.scaffold });
       codeRef.current = def.scaffold;
@@ -115,46 +116,16 @@ export default function BuildInterface() {
     }
     dispatch({ type: "SET_MODE", mode: "C" });
     setReviewState("idle");
+  }, [sections, state.sections, dispatch]);
 
-    const isFounder = persona === "founder";
-    if (isFirst) {
-      addMsg("byuld", isFounder
-        ? "Welcome. We're building a **P2P Escrow contract** — a secure way to hold payment between two parties with a trusted referee. I've set up the structure for your first section. Your job is to fill in the blanks. I'll explain everything as you go."
-        : "We're implementing a **P2P Escrow contract** with a 4-stage state machine. Section 1 covers state variable declarations and the lifecycle enum. Fill in the marked TODO areas.");
-    }
-    addMsg("byuld", isFounder ? def.founderExplanation : def.developerExplanation);
-
-    // Mode C → after 3s, nudge toward the first TODO (still no code given)
-    if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
-    hintTimerRef.current = setTimeout(() => {
-      addMsg("byuld", `💡 ${def.hint}`);
-    }, 3000);
-  }, [sections, state.sections, persona, dispatch, addMsg]);
-
-  // ── Init on mount ─────────────────────────────────────────────────────────
+  // ── Init on mount — load the scaffold silently, no chat, no API ──────────────
   useEffect(() => {
     if (initialized.current) return;
     if (!state.goal) { navigate("/onboarding/goal"); return; }
     initialized.current = true;
-
-    // Proactively wake the API (Render free tier sleeps) so the first review is instant.
+    // Proactively wake the API (Render free tier sleeps) so the first check is instant.
     fetch("/api/health").catch(() => {});
-
-    if (state.messages.length === 0) {
-      // Fresh build — post welcome + intro + load scaffold
-      loadSection(currentIdx, true);
-    } else {
-      // Returning to an in-progress build — restore silently, no duplicate chat
-      const def = sections[currentIdx];
-      const sec = state.sections[currentIdx];
-      if (def && sec && (!sec.code || !sec.code.trim())) {
-        dispatch({ type: "UPDATE_SECTION_CODE", id: sec.id, code: def.scaffold });
-        codeRef.current = def.scaffold;
-      } else if (sec) {
-        codeRef.current = sec.code;
-      }
-      dispatch({ type: "SET_MODE", mode: "C" });
-    }
+    loadSection(currentIdx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -196,7 +167,7 @@ export default function BuildInterface() {
         dispatch({ type: "COMPLETE_SECTION", id: def.id });
         const nextIdx = currentIdx + 1;
         if (nextIdx < sections.length) {
-          setTimeout(() => loadSection(nextIdx, false), 1200);
+          setTimeout(() => loadSection(nextIdx), 1200);
         } else {
           setTimeout(() => {
             addMsg("byuld", "🎉 All four sections complete. Let's run the security review before deploying.");
@@ -249,7 +220,7 @@ export default function BuildInterface() {
           addMsg("byuld", `✓ Resolved. ${res.message}`);
           dispatch({ type: "COMPLETE_SECTION", id: def.id });
           const nextIdx = currentIdx + 1;
-          if (nextIdx < sections.length) setTimeout(() => loadSection(nextIdx, false), 1200);
+          if (nextIdx < sections.length) setTimeout(() => loadSection(nextIdx), 1200);
           else setTimeout(() => navigate("/review"), 1500);
         } else {
           setReviewState("rejected");
@@ -261,22 +232,25 @@ export default function BuildInterface() {
   }, [sections, currentIdx, persona, deductTokens, addMsg, dispatch, navigate, loadSection]);
 
   // ── Mode A: line click ───────────────────────────────────────────────────────
-  const handleLineClick = useCallback(async (line: string, lineNumber: number) => {
-    if (!line.trim()) return;
+  // Floating-button question about a specific line → posts to chat, calls /api/chat
+  // with the exact line as context. Only fires when the user taps a chip / submits.
+  const handleAskLine = useCallback(async (question: string, line: string, lineNumber: number) => {
     const def = sections[currentIdx];
-    dispatch({ type: "SET_MODE", mode: "A" });
+    setRightTab("ask");                 // surface the chat so they see the answer
+    addMsg("user", question);
     setAiLoading(true);
     try {
-      const res = await api<{ explanation: string; tokensUsed: number }>("/api/explain-line", {
-        line, lineNumber, sectionId: def?.id, persona, programmingLanguages: state.programmingLanguages,
+      const res = await api<{ response: string; tokensUsed: number }>("/api/chat", {
+        message: question, line, lineNumber, sectionId: def?.id,
+        persona, currentCode: codeRef.current, chatHistory: state.messages.slice(-8),
       });
-      addMsg("byuld", res.explanation);
+      addMsg("byuld", res.response);
       deductTokens(res.tokensUsed);
     } catch {
-      addMsg("byuld", "I couldn't explain that line right now — try again or ask in the chat.");
+      addMsg("byuld", "I couldn't answer that right now — try again or ask in the chat.");
     }
     setAiLoading(false);
-  }, [sections, currentIdx, persona, addMsg, deductTokens, dispatch]);
+  }, [sections, currentIdx, persona, state.messages, addMsg, deductTokens]);
 
   // ── Chat ─────────────────────────────────────────────────────────────────────
   const handleUserMessage = useCallback(async (text: string) => {
@@ -330,7 +304,7 @@ export default function BuildInterface() {
         <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
           <EditorPanel
             onCodeChange={handleCodeChange}
-            onLineClick={handleLineClick}
+            onAskLine={handleAskLine}
             readOnlyCode={viewSection?.code ?? null}
             readOnlyTitle={viewSection?.title ?? null}
             onCloseReadOnly={() => setViewSection(null)}

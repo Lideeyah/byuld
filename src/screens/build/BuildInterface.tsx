@@ -165,6 +165,9 @@ export default function BuildInterface() {
       if (res.passed) {
         setReviewState("approved");
         addMsg("byuld", `✓ ${res.message}`);
+        // Persist the exact code that passed — this is what the final contract is
+        // assembled from at deploy time. Without it, deploy would compile the scaffold.
+        dispatch({ type: "UPDATE_SECTION_CODE", id: def.id, code });
         dispatch({ type: "COMPLETE_SECTION", id: def.id });
         const nextIdx = currentIdx + 1;
         if (nextIdx < sections.length) {
@@ -224,6 +227,7 @@ export default function BuildInterface() {
         if (res.passed) {
           setReviewState("approved");
           addMsg("byuld", `✓ Resolved. ${res.message}`);
+          dispatch({ type: "UPDATE_SECTION_CODE", id: def.id, code: codeRef.current });
           dispatch({ type: "COMPLETE_SECTION", id: def.id });
           const nextIdx = currentIdx + 1;
           if (nextIdx < sections.length) setTimeout(() => loadSection(nextIdx), 1200);

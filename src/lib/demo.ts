@@ -57,8 +57,7 @@ contract Escrow {
     address public seller;
     address public arbiter;
     uint256 public amount;
-    State public state;
-}`,
+    State public state;`,
   modifiers: `    modifier onlyBuyer() {
         require(msg.sender == buyer, "Only buyer can call this");
         _;
@@ -82,7 +81,8 @@ contract Escrow {
     function dispute() public onlyArbiter inState(State.Locked) {
         state = State.Disputed;
         payable(buyer).transfer(amount);
-    }`,
+    }
+}`,
 };
 
 // Comprehension answers the demo types (genuine, passing reasoning)

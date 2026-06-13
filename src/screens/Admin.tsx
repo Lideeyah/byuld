@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { C, F, R } from "../tokens";
 import Logo from "../components/layout/Logo";
 
-const ADMIN_PASSWORD = "byuld2026";
+const ADMIN_PASSWORD = "make byuldminetoserve#0";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

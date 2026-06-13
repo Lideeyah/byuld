@@ -1,4 +1,4 @@
-import { StrictMode, Component } from "react";
+import { Component } from "react";
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -11,6 +11,10 @@ import "./index.css";
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: string }> {
   state = { error: "" };
   static getDerivedStateFromError(e: Error) { return { error: e.message }; }
+  componentDidCatch(e: Error) {
+    // eslint-disable-next-line no-console
+    console.error("App crash:", e);
+  }
   render() {
     if (this.state.error) {
       return (
@@ -27,9 +31,12 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string }
 
 const privyAppId = (import.meta.env.VITE_PRIVY_APP_ID ?? "").trim();
 
+// Note: React.StrictMode is intentionally not used. Its dev-only double-invoke of
+// effects strands the self-running /demo autopilots (long-lived async scripts that
+// must run exactly once and not be cancelled by a synthetic unmount). StrictMode has
+// no effect on the production bundle, so this changes nothing in deployment.
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <ErrorBoundary>
+  <ErrorBoundary>
       <PrivyProvider
         appId={privyAppId}
         config={{
@@ -52,5 +59,4 @@ createRoot(document.getElementById("root")!).render(
         </ErrorBoundary>
       </PrivyProvider>
     </ErrorBoundary>
-  </StrictMode>
 );

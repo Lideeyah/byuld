@@ -197,9 +197,13 @@ export default function BuildInterface() {
     if (reviewState !== "idle") setReviewState("idle");
   }, [reviewState]);
 
-  const handleCheck = useCallback(() => {
+  const handleCheck = useCallback((code?: unknown) => {
     if (aiLoading) return;
-    runReview(codeRef.current);
+    // The button passes a MouseEvent; the demo passes the exact typed code so the
+    // review never races a not-yet-synced editor ref.
+    const c = typeof code === "string" ? code : codeRef.current;
+    if (typeof code === "string") codeRef.current = code;
+    runReview(c);
   }, [aiLoading, runReview]);
 
   // ── Recheck from the security modal ──────────────────────────────────────────
@@ -321,7 +325,7 @@ export default function BuildInterface() {
           await sleep(900);
         }
 
-        await demoRef.current.check();     // the REAL "Check my code" → real AI review
+        await demoRef.current.check(DEMO_SECTION_CODE[ids[i]]);  // REAL review, exact typed code
         const target = i + 1;
         let g2 = 0; while (demoRef.current.idx < target && g2++ < 90) { if (cancelled) return; await sleep(300); }
         await sleep(1100);

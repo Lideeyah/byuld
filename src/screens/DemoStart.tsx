@@ -3,32 +3,23 @@ import { useNavigate } from "react-router-dom";
 import { C, F } from "../tokens";
 import Logo from "../components/layout/Logo";
 import { setDemo } from "../lib/demo";
+import { useApp } from "../context/AppContext";
 
-// Entry point for the self-running demo. Seeds a clean authed session and starts
-// the founder run; the per-screen autopilots take it from here.
+// Entry point for the self-running demo. Resets to a clean authed session and
+// starts the founder run; the per-screen autopilots take it from here.
 export default function DemoStart() {
   const navigate = useNavigate();
+  const { dispatch } = useApp();
 
   useEffect(() => {
-    try {
-      localStorage.setItem("byuld_seen_howto", "1"); // we'll show it deliberately in-build
-      localStorage.setItem("byuld_session", JSON.stringify({
-        email: "demo@byuld.xyz",
-        walletAddress: "0x7e10f4781e11f5b64Af32Ca0758bE7115654493c",
-        isAuthenticated: true,
-        persona: null,
-        programmingLanguages: [],
-        goal: "", projectName: "", contractType: "escrow", chain: "sepolia",
-        tokensUsed: 0, tokensLimit: 1000000,
-        contractAddress: "", txHash: "", deployedAt: 0,
-        sections: [], currentSection: 0, messages: [],
-      }));
-    } catch { /* ignore */ }
+    try { localStorage.setItem("byuld_seen_howto", "1"); } catch { /* ignore */ }
+    // Drive AppContext directly — never go through a reload, so a stale prior
+    // session in localStorage can't clobber the seed (that was the old bug).
+    dispatch({ type: "RESET_SESSION", persona: null });
     setDemo("founder");
-    // Hard reload into onboarding so AppContext picks up the seeded session.
-    const t = setTimeout(() => { window.location.href = "/onboarding/persona"; }, 1400);
+    const t = setTimeout(() => navigate("/onboarding/persona"), 1400);
     return () => clearTimeout(t);
-  }, [navigate]);
+  }, [navigate, dispatch]);
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "24px" }}>

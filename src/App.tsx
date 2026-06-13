@@ -60,8 +60,13 @@ function PrivyAuthSync() {
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { state } = useApp();
   const { ready, authenticated } = usePrivy();
+  // If our app session already knows the user is authenticated (persisted session
+  // or the seeded demo), render immediately — don't gate on Privy's `ready`.
+  // Gating on Privy here caused guarded screens to blank/remount whenever Privy's
+  // ready state flickered, which restarted the self-running demo's autopilot.
+  if (state.isAuthenticated) return <>{children}</>;
   if (!ready) return null; // wait — prevents flash redirect on reload
-  if (!state.isAuthenticated && !authenticated) return <Navigate to="/auth" replace />;
+  if (!authenticated) return <Navigate to="/auth" replace />;
   return <>{children}</>;
 }
 

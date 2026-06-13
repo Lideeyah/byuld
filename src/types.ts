@@ -73,4 +73,5 @@ export type AppAction =
   | { type: "ACKNOWLEDGE_ISSUE"; id: string }
   | { type: "SET_BYULD_FEE_PAID" }
   | { type: "SET_GAS_FUNDED" }
-  | { type: "SET_DEPLOYED"; contractAddress: string; txHash: string };
+  | { type: "SET_DEPLOYED"; contractAddress: string; txHash: string }
+  | { type: "RESET_SESSION"; persona: Persona | null; languages?: string[] };

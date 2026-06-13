@@ -64,8 +64,30 @@ const INITIAL: AppState = {
   deployedAt: persisted.deployedAt ?? 0,
 };
 
+function freshSections(): Section[] {
+  return getSections().map((def, i) => ({
+    id: def.id, title: def.title, status: i === 0 ? "active" : "locked", code: "",
+  }));
+}
+
 function reducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
+    case "RESET_SESSION":
+      // Wipe everything to a clean authed baseline. Used by the self-running demo
+      // so it never inherits a stale prior session.
+      return {
+        ...state,
+        email: action.persona === "developer" ? "dev@byuld.xyz" : "demo@byuld.xyz",
+        walletAddress: "0x7e10f4781e11f5b64Af32Ca0758bE7115654493c",
+        isAuthenticated: true,
+        persona: action.persona,
+        programmingLanguages: action.languages ?? [],
+        goal: "", projectName: "", contractType: "escrow", chain: "sepolia",
+        sections: freshSections(), currentSection: 0, messages: [],
+        securityIssues: [], byuldFeePaid: false, gasFunded: false,
+        contractAddress: "", txHash: "", deployedAt: 0,
+        tokensUsed: 0,
+      };
     case "SET_EMAIL":
       return { ...state, email: action.email };
     case "SET_AUTHENTICATED":

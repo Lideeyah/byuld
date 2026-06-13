@@ -26,7 +26,7 @@ interface Build {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
 
   const firstName = state.email.split("@")[0] || "there";
 
@@ -37,24 +37,17 @@ export default function Dashboard() {
     if (!demo) return;
     if (demo.persona === "founder") {
       const t = setTimeout(() => {
-        try {
-          localStorage.setItem("byuld_seen_howto", "1");
-          localStorage.setItem("byuld_session", JSON.stringify({
-            email: "dev@byuld.xyz", walletAddress: "0x7e10f4781e11f5b64Af32Ca0758bE7115654493c",
-            isAuthenticated: true, persona: null, programmingLanguages: [],
-            goal: "", projectName: "", contractType: "escrow", chain: "sepolia",
-            tokensUsed: 0, tokensLimit: 1000000, contractAddress: "", txHash: "", deployedAt: 0,
-            sections: [], currentSection: 0, messages: [],
-          }));
-        } catch { /* ignore */ }
+        // Reset in-memory (no reload) so the dev run starts clean.
+        dispatch({ type: "RESET_SESSION", persona: null });
         setDemo("developer");
-        window.location.href = "/onboarding/persona";
+        navigate("/onboarding/persona");
       }, 6500);
       return () => clearTimeout(t);
     }
     // developer run finished → end the demo (stop autopilot)
     const t = setTimeout(() => clearDemo(), 5000);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Derive REAL builds from state — no mock data ──────────────────────────

@@ -23,6 +23,7 @@ import Deploy           from "./screens/Deploy";
 import Success          from "./screens/Success";
 import Dashboard        from "./screens/Dashboard";
 import Admin            from "./screens/Admin";
+import DemoStart        from "./screens/DemoStart";
 
 // Keeps Privy auth state in sync with AppContext
 function PrivyAuthSync() {
@@ -95,6 +96,7 @@ export default function App() {
         <Route path="/dashboard"          element={<AuthGuard><Dashboard /></AuthGuard>} />
 
         <Route path="/admin"              element={<Admin />} />
+        <Route path="/demo"               element={<DemoStart />} />
         <Route path="*"                   element={<Navigate to="/" replace />} />
       </Routes>
     </>

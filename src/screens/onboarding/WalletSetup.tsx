@@ -7,6 +7,7 @@ import Button from "../../components/ui/Button";
 import Spinner from "../../components/ui/Spinner";
 import { useApp } from "../../context/AppContext";
 import ProgressStep from "../../components/ui/ProgressStep";
+import { getDemo } from "../../lib/demo";
 
 const STEPS = ["You", "Wallet", "Chain", "Goal", "Review"];
 
@@ -60,6 +61,13 @@ export default function WalletSetup() {
 
   const short = realAddress.length > 14 ? realAddress.slice(0, 6) + "…" + realAddress.slice(-4) : realAddress;
   const ready = !!realAddress;
+
+  // Demo autopilot: pause to show the wallet, then continue.
+  useEffect(() => {
+    if (!getDemo() || !ready) return;
+    const t = setTimeout(() => navigate("/onboarding/chain"), 3000);
+    return () => clearTimeout(t);
+  }, [ready, navigate]);
 
   const copy = () => {
     navigator.clipboard?.writeText(realAddress);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import MonacoEditor from "@monaco-editor/react";
 import { C, F, R } from "../tokens";
@@ -7,6 +7,7 @@ import Button from "../components/ui/Button";
 import Spinner from "../components/ui/Spinner";
 import { useApp } from "../context/AppContext";
 import { getSections } from "../lib/contracts";
+import { getDemo, DEMO_COMPREHENSION, sleep } from "../lib/demo";
 
 const BROKEN = `function release() public onlyBuyer inState(State.Locked) {
     payable(seller).transfer(amount);
@@ -117,6 +118,46 @@ export default function Comprehension() {
     padding: "24px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg,
     marginBottom: "16px", opacity: open ? 1 : 0.5, pointerEvents: open ? "auto" : "none",
   });
+
+  // ── Demo autopilot ──────────────────────────────────────────────────────────
+  const liveRef = useRef<any>({});
+  liveRef.current = { part, p3, submitSummary, submitBug, submitDecisions };
+  const demoStarted = useRef(false);
+  useEffect(() => {
+    if (!getDemo() || demoStarted.current) return;
+    demoStarted.current = true;
+    let cancelled = false;
+    const waitFor = async (fn: () => boolean) => { let g = 0; while (!fn() && g++ < 120) { if (cancelled) return; await sleep(300); } };
+    (async () => {
+      await sleep(2000);
+      // Part 1 — summarise
+      setSummary(DEMO_COMPREHENSION.summary);
+      await sleep(1200);
+      if (cancelled) return;
+      await liveRef.current.submitSummary();
+      await waitFor(() => liveRef.current.part >= 2);
+      await sleep(1400);
+      // Part 2 — find the bug
+      setBugLine(DEMO_COMPREHENSION.bugLine);
+      setBugEffect(DEMO_COMPREHENSION.bugEffect);
+      await sleep(1300);
+      if (cancelled) return;
+      await liveRef.current.submitBug();
+      await waitFor(() => liveRef.current.part >= 3);
+      await sleep(1400);
+      // Part 3 — defend decisions
+      setD1(DEMO_COMPREHENSION.d1); setD2(DEMO_COMPREHENSION.d2); setD3(DEMO_COMPREHENSION.d3);
+      await sleep(1400);
+      if (cancelled) return;
+      await liveRef.current.submitDecisions();
+      await waitFor(() => liveRef.current.p3?.kind === "pass");
+      await sleep(2000);
+      if (cancelled) return;
+      navigate("/deploy");
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 20px" }}>

@@ -6,6 +6,7 @@ import Badge from "../../components/ui/Badge";
 import SecurityAlert from "../../components/ui/SecurityAlert";
 import Spinner from "../../components/ui/Spinner";
 import { useApp } from "../../context/AppContext";
+import { getDemo } from "../../lib/demo";
 import type { SecurityIssue } from "../../types";
 import Logo from "../../components/layout/Logo";
 
@@ -96,6 +97,18 @@ export default function FinalReview() {
   };
 
   const allResolved = phase === "done" && criticals.length === 0 && warnings.every(i => localAck.has(i.id));
+
+  // Demo autopilot: once the scan is clean, continue to the comprehension gate.
+  useEffect(() => {
+    if (!getDemo() || phase !== "done") return;
+    // acknowledge any warnings so the gate is unblocked, then continue
+    warnings.forEach(w => { if (!localAck.has(w.id)) ack(w.id); });
+    if (criticals.length === 0) {
+      const t = setTimeout(() => navigate("/comprehension"), 3500);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, issues]);
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>

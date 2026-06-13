@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../tokens";
 import Logo from "../components/layout/Logo";
@@ -5,6 +6,7 @@ import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import TokenMeter from "../components/ui/TokenMeter";
 import { useApp } from "../context/AppContext";
+import { getDemo, setDemo, clearDemo } from "../lib/demo";
 
 const EXPLORER: Record<string, string> = {
   "base-sepolia": "https://sepolia.basescan.org/address/",
@@ -27,6 +29,33 @@ export default function Dashboard() {
   const { state } = useApp();
 
   const firstName = state.email.split("@")[0] || "there";
+
+  // Demo autopilot: after the founder run lands here, chain into the developer run.
+  // After the developer run, end the demo.
+  useEffect(() => {
+    const demo = getDemo();
+    if (!demo) return;
+    if (demo.persona === "founder") {
+      const t = setTimeout(() => {
+        try {
+          localStorage.setItem("byuld_seen_howto", "1");
+          localStorage.setItem("byuld_session", JSON.stringify({
+            email: "dev@byuld.xyz", walletAddress: "0x7e10f4781e11f5b64Af32Ca0758bE7115654493c",
+            isAuthenticated: true, persona: null, programmingLanguages: [],
+            goal: "", projectName: "", contractType: "escrow", chain: "sepolia",
+            tokensUsed: 0, tokensLimit: 1000000, contractAddress: "", txHash: "", deployedAt: 0,
+            sections: [], currentSection: 0, messages: [],
+          }));
+        } catch { /* ignore */ }
+        setDemo("developer");
+        window.location.href = "/onboarding/persona";
+      }, 6500);
+      return () => clearTimeout(t);
+    }
+    // developer run finished → end the demo (stop autopilot)
+    const t = setTimeout(() => clearDemo(), 5000);
+    return () => clearTimeout(t);
+  }, []);
 
   // ── Derive REAL builds from state — no mock data ──────────────────────────
   const builds: Build[] = [];

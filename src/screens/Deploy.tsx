@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../tokens";
 import Logo from "../components/layout/Logo";
 import Button from "../components/ui/Button";
 import Spinner from "../components/ui/Spinner";
 import { useApp } from "../context/AppContext";
+import { getDemo } from "../lib/demo";
 
 type Step = "summary" | "deploying" | "error";
 
@@ -23,6 +24,9 @@ export default function Deploy() {
 
   // Assemble the user's actual code from every section into one contract.
   const assembled = state.sections.map((s) => s.code).filter(Boolean).join("\n\n");
+
+  const deployRef = useRef<() => void>(() => {});
+  const deployStarted = useRef(false);
 
   const deploy = async () => {
     setStep("deploying");
@@ -56,7 +60,7 @@ export default function Deploy() {
       if (state.email) {
         fetch("/api/notify-deploy", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: state.email, contractAddress: data.contractAddress, chain: "base-sepolia", contractType: "escrow", txHash: data.txHash }),
+          body: JSON.stringify({ email: state.email, contractAddress: data.contractAddress, chain: "sepolia", contractType: "escrow", txHash: data.txHash }),
         }).catch(() => {});
       }
       setTimeout(() => navigate("/success"), 600);
@@ -65,6 +69,16 @@ export default function Deploy() {
       setStep("error");
     }
   };
+  deployRef.current = deploy;
+
+  // Demo autopilot: show the summary, then deploy for real.
+  useEffect(() => {
+    if (!getDemo() || deployStarted.current) return;
+    deployStarted.current = true;
+    const t = setTimeout(() => deployRef.current(), 3200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Summary ──────────────────────────────────────────────────────────────
   if (step === "summary") {
@@ -85,7 +99,7 @@ export default function Deploy() {
           </div>
 
           <div style={{ padding: "14px 16px", background: `${C.mint}0A`, border: `1px solid ${C.mint}22`, borderRadius: R.md, fontSize: "13px", color: C.textSec, fontFamily: F.body, lineHeight: 1.6 }}>
-            This is a <strong style={{ color: C.white }}>testnet deployment</strong>. No real money is involved — Base Sepolia is a free practice network.
+            This is a <strong style={{ color: C.white }}>testnet deployment</strong>. No real money is involved — Ethereum Sepolia is a free practice network.
           </div>
 
           <Button fullWidth size="lg" onClick={deploy}>Deploy to Sepolia →</Button>

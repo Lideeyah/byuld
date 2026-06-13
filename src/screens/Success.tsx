@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../tokens";
 import Logo from "../components/layout/Logo";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import { useApp } from "../context/AppContext";
+import { getDemo } from "../lib/demo";
 
 const CHAIN_EXPLORER: Record<string, string> = {
   base:         "https://basescan.org/address/",
@@ -27,6 +28,13 @@ export default function Success() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // Demo autopilot: celebrate the deploy, then head to the dashboard.
+  useEffect(() => {
+    if (!getDemo()) return;
+    const t = setTimeout(() => navigate("/dashboard"), 5500);
+    return () => clearTimeout(t);
+  }, [navigate]);
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>

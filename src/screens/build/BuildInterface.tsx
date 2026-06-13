@@ -11,6 +11,7 @@ import Button from "../../components/ui/Button";
 import Spinner from "../../components/ui/Spinner";
 import { useApp, UNLIMITED_TOKENS } from "../../context/AppContext";
 import { getSections, getSectionDef } from "../../lib/contracts";
+import { getDemo, DEMO_SECTION_CODE, DEMO_CONTENT, typeIntoEditor, sleep } from "../../lib/demo";
 import type { SecurityIssue } from "../../types";
 
 async function api<T>(endpoint: string, body: object): Promise<T> {
@@ -279,6 +280,57 @@ export default function BuildInterface() {
       setViewSection({ code: s.code, title: def?.title ?? s.title });
     }
   }, [state.sections]);
+
+  // ── Demo autopilot ───────────────────────────────────────────────────────────
+  // Keep latest handlers/index in a ref so the long-running script never goes stale.
+  const demoRef = useRef<any>({});
+  demoRef.current = { idx: currentIdx, check: handleCheck, ask: handleAskLine, chat: handleUserMessage };
+  const demoStarted = useRef(false);
+  useEffect(() => {
+    const demo = getDemo();
+    if (!demo || demoStarted.current) return;
+    demoStarted.current = true;
+    let cancelled = false;
+    (async () => {
+      // 1. Show the "how it works" overlay, then dismiss it.
+      setShowHowTo(true);
+      await sleep(4200);
+      if (cancelled) return;
+      setShowHowTo(false);
+      await sleep(900);
+
+      const ids = ["state", "modifiers", "deposit", "resolution"];
+      for (let i = 0; i < ids.length; i++) {
+        if (cancelled) return;
+        // wait until we're actually on this section
+        let g = 0; while (demoRef.current.idx !== i && g++ < 60) { if (cancelled) return; await sleep(150); }
+        await sleep(1300);                 // let the viewer read the task
+        await typeIntoEditor(DEMO_SECTION_CODE[ids[i]]);
+        if (cancelled) return;
+        await sleep(700);
+
+        // On the first section, show off the inline "?" line-help and the chat.
+        if (i === 0) {
+          await demoRef.current.ask(DEMO_CONTENT[demo.persona].lineQuestion, "enum State { Created, Locked, Released, Disputed }", 5);
+          await sleep(5500);
+          if (cancelled) return;
+          await demoRef.current.chat(DEMO_CONTENT[demo.persona].chatQuestion);
+          await sleep(6500);
+          if (cancelled) return;
+          setRightTab("guide");
+          await sleep(900);
+        }
+
+        await demoRef.current.check();     // the REAL "Check my code" → real AI review
+        const target = i + 1;
+        let g2 = 0; while (demoRef.current.idx < target && g2++ < 90) { if (cancelled) return; await sleep(300); }
+        await sleep(1100);
+      }
+      // After section 4 passes, runReview navigates to /review automatically.
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden" }}>

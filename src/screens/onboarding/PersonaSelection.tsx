@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../../tokens";
 import Logo from "../../components/layout/Logo";
@@ -6,6 +6,7 @@ import Button from "../../components/ui/Button";
 import { useApp } from "../../context/AppContext";
 import type { Persona } from "../../types";
 import ProgressStep from "../../components/ui/ProgressStep";
+import { getDemo, DEMO_CONTENT, sleep } from "../../lib/demo";
 
 const OPTIONS: { persona: Persona; icon: string; title: string; desc: string }[] = [
   {
@@ -42,6 +43,33 @@ export default function PersonaSelection() {
     if (selected === "developer") dispatch({ type: "SET_LANGUAGES", languages: langs });
     navigate("/onboarding/wallet");
   };
+
+  // ── Demo autopilot ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const demo = getDemo();
+    if (!demo) return;
+    let cancelled = false;
+    (async () => {
+      await sleep(1100);
+      if (cancelled) return;
+      setSelected(demo.persona);
+      if (demo.persona === "developer") {
+        await sleep(700);
+        for (const l of DEMO_CONTENT.developer.languages) {
+          if (cancelled) return;
+          setLangs(prev => prev.includes(l) ? prev : [...prev, l]);
+          await sleep(400);
+        }
+      }
+      await sleep(900);
+      if (cancelled) return;
+      dispatch({ type: "SET_PERSONA", persona: demo.persona });
+      if (demo.persona === "developer") dispatch({ type: "SET_LANGUAGES", languages: DEMO_CONTENT.developer.languages });
+      navigate("/onboarding/wallet");
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div style={{

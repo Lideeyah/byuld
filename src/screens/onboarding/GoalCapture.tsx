@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../../tokens";
 import Logo from "../../components/layout/Logo";
@@ -7,6 +7,7 @@ import Textarea from "../../components/ui/Textarea";
 import { useApp } from "../../context/AppContext";
 import ProgressStep from "../../components/ui/ProgressStep";
 import Spinner from "../../components/ui/Spinner";
+import { getDemo, DEMO_CONTENT, sleep } from "../../lib/demo";
 
 const STEPS = ["You", "Wallet", "Chain", "Goal", "Review"];
 
@@ -26,6 +27,38 @@ export default function GoalCapture() {
   const loading = false;
 
   const canContinue = goal.trim().length >= 15;
+
+  // ── Demo autopilot: type the goal, then submit ──────────────────────────────
+  useEffect(() => {
+    const demo = getDemo();
+    if (!demo) return;
+    let cancelled = false;
+    (async () => {
+      await sleep(900);
+      const g = DEMO_CONTENT[demo.persona].goal;
+      // animate typing word by word
+      const words = g.split(" ");
+      let acc = "";
+      for (const w of words) {
+        if (cancelled) return;
+        acc += (acc ? " " : "") + w;
+        setGoal(acc);
+        await sleep(70);
+      }
+      await sleep(900);
+      if (cancelled) return;
+      const name = g.length > 42 ? g.slice(0, 42) + "…" : g.charAt(0).toUpperCase() + g.slice(1);
+      sessionStorage.removeItem("byuld_intent");
+      dispatch({ type: "SET_GOAL", goal: g, contractType: "escrow", projectName: name });
+      fetch("/api/classify-goal", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goal: g, persona: demo.persona }),
+      }).then(r => r.ok ? r.json() : null).then(d => { if (d) sessionStorage.setItem("byuld_intent", JSON.stringify(d)); }).catch(() => {});
+      navigate("/onboarding/review");
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleContinue = () => {
     if (!canContinue || loading) return;

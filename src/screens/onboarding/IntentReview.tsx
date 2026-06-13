@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../../tokens";
 import Logo from "../../components/layout/Logo";
@@ -6,6 +7,7 @@ import { useApp } from "../../context/AppContext";
 import ProgressStep from "../../components/ui/ProgressStep";
 import { getSections } from "../../lib/contracts";
 import type { Section } from "../../types";
+import { getDemo } from "../../lib/demo";
 
 const STEPS = ["You", "Wallet", "Chain", "Goal", "Review"];
 
@@ -36,6 +38,14 @@ export default function IntentReview() {
     dispatch({ type: "SET_SECTIONS", sections });
     navigate("/build");
   };
+
+  // Demo autopilot: pause to show the plan, then start building.
+  useEffect(() => {
+    if (!getDemo()) return;
+    const t = setTimeout(startBuilding, 3200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>

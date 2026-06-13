@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../../tokens";
 import Logo from "../../components/layout/Logo";
@@ -6,6 +6,7 @@ import Button from "../../components/ui/Button";
 import { useApp } from "../../context/AppContext";
 import ProgressStep from "../../components/ui/ProgressStep";
 import type { Chain } from "../../types";
+import { getDemo } from "../../lib/demo";
 
 const STEPS = ["You", "Wallet", "Chain", "Goal", "Review"];
 
@@ -40,6 +41,13 @@ export default function ChainSelection() {
     dispatch({ type: "SET_CHAIN", chain: selected });
     navigate("/onboarding/goal");
   };
+
+  // Demo autopilot: Sepolia is already selected — pause to show it, then continue.
+  useEffect(() => {
+    if (!getDemo()) return;
+    const t = setTimeout(() => { dispatch({ type: "SET_CHAIN", chain: "sepolia" }); navigate("/onboarding/goal"); }, 2600);
+    return () => clearTimeout(t);
+  }, [dispatch, navigate]);
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>

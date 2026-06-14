@@ -134,7 +134,7 @@ export default function IntentReview() {
 
   // ── Ready: plan summary (dynamic for generated builds, escrow for the demo) ───
   const isGenerated = !!plan;
-  const projectName = isGenerated ? plan!.contractName : (state.projectName || intent.projectName || "Your Escrow Contract");
+  const projectName = isGenerated ? (plan!.projectName || plan!.contractName) : (state.projectName || intent.projectName || "Your Escrow Contract");
   const contractLabel = isGenerated ? plan!.contractType.replace(/-/g, " ") : "P2P Escrow Contract";
   const description = isGenerated ? plan!.description : (intent.description || "A secure way to hold a payment between two parties, released only when the deal is done.");
   const willBuild = isGenerated ? plan!.sections.map(s => s.title) : ESCROW_WILL_BUILD;

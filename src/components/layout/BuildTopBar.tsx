@@ -15,7 +15,9 @@ const CHAIN_LABELS: Record<string, string> = {
 
 export default function BuildTopBar() {
   const { state } = useApp();
-  const sessionName = state.goal.length > 40 ? state.goal.slice(0, 40) + "…" : state.goal;
+  // Prefer the friendly AI-generated name; fall back to the raw goal only if absent.
+  const label = state.projectName || state.goal;
+  const sessionName = label.length > 40 ? label.slice(0, 40) + "…" : label;
 
   return (
     <div style={{

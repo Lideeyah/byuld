@@ -99,7 +99,7 @@ function reducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         buildPlan: action.plan,
-        projectName: state.projectName || action.plan.contractName,
+        projectName: action.plan.projectName || action.plan.contractName,
         contractType: action.plan.contractType || state.contractType,
         sections, currentSection: 0, messages: [], securityIssues: [],
         contractAddress: "", txHash: "", deployedAt: 0,

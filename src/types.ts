@@ -41,6 +41,7 @@ export interface BuildSectionDef {
 // A tailored build produced by /api/generate-build-plan for any web3 goal.
 export interface BuildPlan {
   contractName: string;
+  projectName?: string;   // friendly human title (e.g. "Tip Jar for Creators")
   contractType: string;
   description: string;
   sections: BuildSectionDef[];

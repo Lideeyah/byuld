@@ -47,13 +47,17 @@ export default function GoalCapture() {
       }
       await sleep(900);
       if (cancelled) return;
-      const name = g.length > 42 ? g.slice(0, 42) + "…" : g.charAt(0).toUpperCase() + g.slice(1);
       sessionStorage.removeItem("byuld_intent");
-      dispatch({ type: "SET_GOAL", goal: g, contractType: "escrow", projectName: name });
+      dispatch({ type: "SET_GOAL", goal: g, contractType: "escrow", projectName: "Escrow Contract" });
+      // Upgrade to the friendly AI name (e.g. "Marketplace Payment Escrow") when it lands.
       fetch("/api/classify-goal", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal: g, persona: demo.persona }),
-      }).then(r => r.ok ? r.json() : null).then(d => { if (d) sessionStorage.setItem("byuld_intent", JSON.stringify(d)); }).catch(() => {});
+      }).then(r => r.ok ? r.json() : null).then(d => {
+        if (!d) return;
+        sessionStorage.setItem("byuld_intent", JSON.stringify(d));
+        if (d.projectName) dispatch({ type: "SET_GOAL", goal: g, contractType: "escrow", projectName: d.projectName });
+      }).catch(() => {});
       navigate("/onboarding/review");
     })();
     return () => { cancelled = true; };
@@ -65,12 +69,12 @@ export default function GoalCapture() {
     const g = goal.trim();
     // V1: every goal maps to escrow — no need to WAIT on the API to move forward.
     // Set a sensible name now, navigate instantly, and personalise in the background.
-    const fallbackName = g.length > 42 ? g.slice(0, 42) + "…" : g.charAt(0).toUpperCase() + g.slice(1);
+    // Generic placeholder; IntentReview generates the real tailored name (plan.projectName).
     sessionStorage.removeItem("byuld_intent");
-    dispatch({ type: "SET_GOAL", goal: g, contractType: "escrow", projectName: fallbackName });
+    dispatch({ type: "SET_GOAL", goal: g, contractType: "escrow", projectName: "New Build" });
     navigate("/onboarding/review");
 
-    // Fire-and-forget: enrich the project name/description for the review screen.
+    // Fire-and-forget: cache a description for the review screen's escrow fallback.
     fetch("/api/classify-goal", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ goal: g, persona: state.persona ?? "founder" }),

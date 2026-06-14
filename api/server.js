@@ -183,7 +183,8 @@ Write developerExplanation in a technical register${programmingLanguages.length 
 
 Respond in JSON ONLY, no markdown:
 {
-  "contractName": "PascalCase contract name",
+  "contractName": "PascalCase contract identifier (e.g. TipJar)",
+  "projectName": "a short, friendly 3-5 word title a human would use to refer to this build (e.g. 'Tip Jar for Creators', 'Event Ticket NFT', 'Marketplace Payment Escrow') — NOT the PascalCase identifier and NOT the user's raw sentence",
   "contractType": "short-slug",
   "description": "one sentence, plain English",
   "sections": [

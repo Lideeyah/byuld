@@ -114,14 +114,25 @@ export const DEMO_COMPREHENSION = {
   d3: "Tracking the state stops invalid actions — like releasing funds twice, or depositing after the contract is already locked.",
 };
 
-// Wait until Monaco has mounted a model. On slow connections (e.g. the editor
-// loads from a CDN) this can lag a few seconds — without this the demo could try
-// to "type" into nothing and leave the editor empty.
+// The VISIBLE editor's current model. Critical: the build editor uses a different
+// Monaco `path` (and therefore a different model) per section, so getModels()[0] is
+// NOT the section on screen for sections 2+. Always drive the editor's active model.
+function activeEditor(): any | null {
+  const monaco = (window as any).monaco;
+  return monaco?.editor?.getEditors?.()[0] ?? null;
+}
+function activeModel(): any | null {
+  const ed = activeEditor();
+  return ed?.getModel?.() ?? (window as any).monaco?.editor?.getModels?.()[0] ?? null;
+}
+
+// Wait until Monaco has mounted and the editor has a model. On slow connections (the
+// editor loads from a CDN) this can lag a few seconds — without this the demo could
+// try to "type" into nothing and leave the editor empty.
 async function waitForModel(timeoutMs = 15000): Promise<any | null> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    const monaco = (window as any).monaco;
-    const model = monaco?.editor?.getModels?.()[0];
+    const model = activeModel();
     if (model) return model;
     await sleep(200);
   }
@@ -132,10 +143,9 @@ async function waitForModel(timeoutMs = 15000): Promise<any | null> {
 // animate the new section's body line by line, then close the contract. The editor
 // always ends on a complete, balanced contract. Returns the final source.
 export async function appendToContract(prefix: string, body: string, perLineMs = 55): Promise<string> {
-  const monaco = (window as any).monaco;
   const model = await waitForModel();
   if (!model) return prefix + body + "\n}";
-  const ed = monaco.editor.getEditors?.()[0] ?? null;
+  const ed = activeEditor();
   model.setValue(prefix);
   let acc = prefix;
   const lines = body.split("\n");
@@ -160,10 +170,9 @@ export async function setEditorValue(code: string) {
 
 // Back-compat helper — type a whole snippet from scratch (still waits for Monaco).
 export async function typeIntoEditor(code: string, perLineMs = 55) {
-  const monaco = (window as any).monaco;
   const model = await waitForModel();
   if (!model) return;
-  const ed = monaco.editor.getEditors?.()[0] ?? null;
+  const ed = activeEditor();
   const lines = code.split("\n");
   let acc = "";
   for (let i = 0; i < lines.length; i++) {

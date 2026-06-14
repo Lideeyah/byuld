@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { C, F, R } from "../../tokens";
 import { useApp } from "../../context/AppContext";
+import { getDemo } from "../../lib/demo";
 import MonacoEditor from "@monaco-editor/react";
 
 interface Props {
@@ -131,7 +132,11 @@ export default function EditorPanel({ onCodeChange, onAskLine, readOnlyCode, rea
   const handleChange = (value: string | undefined) => {
     if (viewingReadOnly) return;
     const code = value ?? "";
-    if (currentSec) dispatch({ type: "UPDATE_SECTION_CODE", id: currentSec.id, code });
+    // During the self-running demo, the editor is driven programmatically and the
+    // stored code is synced at section boundaries by the autopilot. Dispatching on
+    // every change here would change the controlled `value` ~20×/sec and let Monaco
+    // reset the model mid-animation (so sections 2+ wouldn't appear to type).
+    if (currentSec && !getDemo()) dispatch({ type: "UPDATE_SECTION_CODE", id: currentSec.id, code });
     onCodeChange?.(code);
   };
 

@@ -198,16 +198,9 @@ export default function BuildInterface() {
   // no more accidental Claude calls (and burned credits) on every keystroke.
   const handleCodeChange = useCallback((code: string) => {
     codeRef.current = code;
-    // During the self-running demo, keep the stored section code in sync with what's
-    // typed. The editor is controlled by state.sections[i].code, so without this a
-    // re-render (e.g. "Checking…") would snap the editor back to the empty scaffold.
-    if (getDemo()) {
-      const def = sections[currentIdx];
-      if (def) dispatch({ type: "UPDATE_SECTION_CODE", id: def.id, code });
-    }
     if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
     if (reviewState !== "idle") setReviewState("idle");
-  }, [reviewState, sections, currentIdx, dispatch]);
+  }, [reviewState]);
 
   const handleCheck = useCallback((code?: unknown) => {
     if (aiLoading) return;
@@ -324,12 +317,17 @@ export default function BuildInterface() {
         let g = 0; while (demoRef.current.idx !== i && g++ < 60) { if (cancelled) return; await sleep(150); }
         // Show the contract built so far immediately (no bare-scaffold flash), then
         // pause so the viewer can read the task before the new code is written.
+        // We sync the stored section code only at the START (prefix) and END (snapshot)
+        // of each section — never per line — so the editor's controlled `value` always
+        // matches the model at those points and never resets/eats the typing animation.
         const prefix = demoPrefix(i);
+        dispatch({ type: "UPDATE_SECTION_CODE", id: ids[i], code: prefix });
         await setEditorValue(prefix);
         await sleep(1300);
         if (cancelled) return;
         // Write this section's body into the growing, brace-balanced contract.
         const snapshot = await appendToContract(prefix, DEMO_BODY_PARTS[ids[i]]);
+        dispatch({ type: "UPDATE_SECTION_CODE", id: ids[i], code: snapshot });
         if (cancelled) return;
         await sleep(700);
 

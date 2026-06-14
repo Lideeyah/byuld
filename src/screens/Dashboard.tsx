@@ -74,18 +74,20 @@ export default function Dashboard() {
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
-      <nav style={{ height: "56px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 28px", gap: "20px" }}>
-        <Logo size="sm" />
-        <div style={{ flex: 1 }} />
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ width: "120px" }}>
-            <TokenMeter used={state.tokensUsed} limit={state.tokensLimit} />
+      <nav style={{ height: "56px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "center", padding: "0 28px", flexShrink: 0 }}>
+        <div style={{ width: "100%", maxWidth: "1040px", display: "flex", alignItems: "center", gap: "20px" }}>
+          <Logo size="sm" />
+          <div style={{ flex: 1 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ width: "120px" }}>
+              <TokenMeter used={state.tokensUsed} limit={state.tokensLimit} />
+            </div>
+            <AccountMenu />
           </div>
-          <AccountMenu />
         </div>
       </nav>
 
-      <div style={{ padding: "40px 28px", maxWidth: "900px", width: "100%" }}>
+      <div style={{ padding: "40px 28px", maxWidth: "1040px", width: "100%", alignSelf: "center", boxSizing: "border-box" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "40px" }}>
           <div>
             <h1 style={{ fontSize: "26px", fontWeight: 700, fontFamily: F.display, color: C.white, marginBottom: "4px" }}>

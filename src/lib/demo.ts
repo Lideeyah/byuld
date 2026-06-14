@@ -45,14 +45,19 @@ export const DEMO_CONTENT: Record<DemoPersona, {
   },
 };
 
-// The exact, correct code the demo types into each section (full file for `state`,
-// the relevant block for the others — matches what a learner would write).
-export const DEMO_SECTION_CODE: Record<string, string> = {
-  state: `// SPDX-License-Identifier: MIT
+// The demo builds ONE coherent contract that grows section by section. Each part
+// below is just the body that lives INSIDE the contract; the header (SPDX + pragma
+// + `contract Escrow {`) and the closing `}` are added so the editor always shows a
+// complete, brace-balanced file as it's written.
+export const DEMO_SECTION_IDS = ["state", "modifiers", "deposit", "resolution"] as const;
+
+const DEMO_HEADER = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-contract Escrow {
-    enum State { Created, Locked, Released, Disputed }
+contract Escrow {`;
+
+export const DEMO_BODY_PARTS: Record<string, string> = {
+  state: `    enum State { Created, Locked, Released, Disputed }
     address public buyer;
     address public seller;
     address public arbiter;
@@ -81,9 +86,20 @@ contract Escrow {
     function dispute() public onlyArbiter inState(State.Locked) {
         state = State.Disputed;
         payable(buyer).transfer(amount);
-    }
-}`,
+    }`,
 };
+
+// The contract text BEFORE section `i` is typed — no closing brace yet, ready to
+// append the new section's body.
+export function demoPrefix(i: number): string {
+  const prior = DEMO_SECTION_IDS.slice(0, i).map(id => DEMO_BODY_PARTS[id]);
+  return DEMO_HEADER + "\n" + (prior.length ? prior.join("\n\n") + "\n\n" : "");
+}
+
+// Back-compat: the full contract-so-far after section `i` is complete.
+export const DEMO_SECTION_CODE: Record<string, string> = Object.fromEntries(
+  DEMO_SECTION_IDS.map((id, i) => [id, demoPrefix(i) + DEMO_BODY_PARTS[id] + "\n}"])
+);
 
 // Comprehension answers the demo types (genuine, passing reasoning)
 export const DEMO_COMPREHENSION = {
@@ -98,13 +114,56 @@ export const DEMO_COMPREHENSION = {
   d3: "Tracking the state stops invalid actions — like releasing funds twice, or depositing after the contract is already locked.",
 };
 
-// Animate-type a string into the active Monaco model (no autoclose mess, reliable).
+// Wait until Monaco has mounted a model. On slow connections (e.g. the editor
+// loads from a CDN) this can lag a few seconds — without this the demo could try
+// to "type" into nothing and leave the editor empty.
+async function waitForModel(timeoutMs = 15000): Promise<any | null> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const monaco = (window as any).monaco;
+    const model = monaco?.editor?.getModels?.()[0];
+    if (model) return model;
+    await sleep(200);
+  }
+  return null;
+}
+
+// Show `prefix` immediately (the contract built so far, no closing brace), then
+// animate the new section's body line by line, then close the contract. The editor
+// always ends on a complete, balanced contract. Returns the final source.
+export async function appendToContract(prefix: string, body: string, perLineMs = 55): Promise<string> {
+  const monaco = (window as any).monaco;
+  const model = await waitForModel();
+  if (!model) return prefix + body + "\n}";
+  const ed = monaco.editor.getEditors?.()[0] ?? null;
+  model.setValue(prefix);
+  let acc = prefix;
+  const lines = body.split("\n");
+  for (const ln of lines) {
+    acc += ln + "\n";
+    model.setValue(acc);
+    try { ed?.revealLine(model.getLineCount()); } catch { /* ignore */ }
+    await sleep(perLineMs);
+  }
+  const full = acc + "}";
+  model.setValue(full);
+  try { ed?.revealLine(model.getLineCount()); } catch { /* ignore */ }
+  return full;
+}
+
+// Quick, non-animated set of the editor (used to show the contract-so-far instantly
+// when a section opens, before the read pause).
+export async function setEditorValue(code: string) {
+  const model = await waitForModel();
+  if (model) model.setValue(code);
+}
+
+// Back-compat helper — type a whole snippet from scratch (still waits for Monaco).
 export async function typeIntoEditor(code: string, perLineMs = 55) {
   const monaco = (window as any).monaco;
-  if (!monaco) return;
-  const ed = monaco.editor.getEditors?.()[0] ?? null;
-  const model = monaco.editor.getModels?.()[0];
+  const model = await waitForModel();
   if (!model) return;
+  const ed = monaco.editor.getEditors?.()[0] ?? null;
   const lines = code.split("\n");
   let acc = "";
   for (let i = 0; i < lines.length; i++) {

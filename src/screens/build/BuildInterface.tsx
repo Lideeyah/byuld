@@ -11,7 +11,7 @@ import Button from "../../components/ui/Button";
 import Spinner from "../../components/ui/Spinner";
 import { useApp, UNLIMITED_TOKENS } from "../../context/AppContext";
 import { getSections, getSectionDef } from "../../lib/contracts";
-import { getDemo, DEMO_SECTION_CODE, DEMO_CONTENT, typeIntoEditor, sleep } from "../../lib/demo";
+import { getDemo, DEMO_SECTION_IDS, DEMO_BODY_PARTS, DEMO_CONTENT, demoPrefix, appendToContract, setEditorValue, sleep } from "../../lib/demo";
 import type { SecurityIssue, BuildSectionDef } from "../../types";
 
 async function api<T>(endpoint: string, body: object): Promise<T> {
@@ -198,9 +198,16 @@ export default function BuildInterface() {
   // no more accidental Claude calls (and burned credits) on every keystroke.
   const handleCodeChange = useCallback((code: string) => {
     codeRef.current = code;
+    // During the self-running demo, keep the stored section code in sync with what's
+    // typed. The editor is controlled by state.sections[i].code, so without this a
+    // re-render (e.g. "Checking…") would snap the editor back to the empty scaffold.
+    if (getDemo()) {
+      const def = sections[currentIdx];
+      if (def) dispatch({ type: "UPDATE_SECTION_CODE", id: def.id, code });
+    }
     if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
     if (reviewState !== "idle") setReviewState("idle");
-  }, [reviewState]);
+  }, [reviewState, sections, currentIdx, dispatch]);
 
   const handleCheck = useCallback((code?: unknown) => {
     if (aiLoading) return;
@@ -310,13 +317,19 @@ export default function BuildInterface() {
       setShowHowTo(false);
       await sleep(900);
 
-      const ids = ["state", "modifiers", "deposit", "resolution"];
+      const ids = DEMO_SECTION_IDS;
       for (let i = 0; i < ids.length; i++) {
         if (cancelled) return;
         // wait until we're actually on this section
         let g = 0; while (demoRef.current.idx !== i && g++ < 60) { if (cancelled) return; await sleep(150); }
-        await sleep(1300);                 // let the viewer read the task
-        await typeIntoEditor(DEMO_SECTION_CODE[ids[i]]);
+        // Show the contract built so far immediately (no bare-scaffold flash), then
+        // pause so the viewer can read the task before the new code is written.
+        const prefix = demoPrefix(i);
+        await setEditorValue(prefix);
+        await sleep(1300);
+        if (cancelled) return;
+        // Write this section's body into the growing, brace-balanced contract.
+        const snapshot = await appendToContract(prefix, DEMO_BODY_PARTS[ids[i]]);
         if (cancelled) return;
         await sleep(700);
 
@@ -332,7 +345,7 @@ export default function BuildInterface() {
           await sleep(900);
         }
 
-        await demoRef.current.check(DEMO_SECTION_CODE[ids[i]]);  // REAL review, exact typed code
+        await demoRef.current.check(snapshot);  // REAL review against the contract so far
         const target = i + 1;
         let g2 = 0; while (demoRef.current.idx < target && g2++ < 90) { if (cancelled) return; await sleep(300); }
         await sleep(1100);

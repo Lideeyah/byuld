@@ -12,7 +12,7 @@ import Spinner from "../../components/ui/Spinner";
 import { useApp, UNLIMITED_TOKENS } from "../../context/AppContext";
 import { getSections, getSectionDef } from "../../lib/contracts";
 import { getDemo, DEMO_SECTION_CODE, DEMO_CONTENT, typeIntoEditor, sleep } from "../../lib/demo";
-import type { SecurityIssue } from "../../types";
+import type { SecurityIssue, BuildSectionDef } from "../../types";
 
 async function api<T>(endpoint: string, body: object): Promise<T> {
   // Generous timeout: the API may be waking from sleep (Render cold start).
@@ -67,7 +67,8 @@ function SecurityBlockModal({ issue, onRecheck, checking }: {
 export default function BuildInterface() {
   const navigate = useNavigate();
   const { state, dispatch } = useApp();
-  const sections = getSections();
+  // AI-generated builds carry their own sections; otherwise fall back to escrow.
+  const sections: BuildSectionDef[] = state.buildPlan?.sections?.length ? state.buildPlan.sections : getSections();
 
   const [aiLoading, setAiLoading] = useState(false);
   const [reviewState, setReviewState] = useState<"idle" | "reviewing" | "approved" | "rejected">("idle");
@@ -144,7 +145,8 @@ export default function BuildInterface() {
     try {
       const res = await api<{ passed: boolean; type: string; message: string; severity: string | null; tokensUsed: number }>(
         "/api/review-section",
-        { sectionId: def.id, userCode: code, persona, programmingLanguages: state.programmingLanguages }
+        { sectionId: def.id, userCode: code, persona, programmingLanguages: state.programmingLanguages,
+          requirements: def.requirements, sectionTitle: def.title, contractName: state.buildPlan?.contractName }
       );
       deductTokens(res.tokensUsed);
 
@@ -217,7 +219,8 @@ export default function BuildInterface() {
     try {
       const res = await api<{ passed: boolean; type: string; message: string; severity: string | null; tokensUsed: number }>(
         "/api/review-section",
-        { sectionId: def.id, userCode: codeRef.current, persona, programmingLanguages: state.programmingLanguages }
+        { sectionId: def.id, userCode: codeRef.current, persona, programmingLanguages: state.programmingLanguages,
+          requirements: def.requirements, sectionTitle: def.title, contractName: state.buildPlan?.contractName }
       );
       deductTokens(res.tokensUsed);
       if (res.type === "security_issue" && res.severity === "critical") {

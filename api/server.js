@@ -141,24 +141,163 @@ Respond in JSON only. No markdown. No prose outside the JSON.
   }
 });
 
+// ─── POST /api/generate-build-plan ─────────────────────────────────────────────
+// Turns ANY web3 goal into a tailored, guided build: a real Solidity contract
+// split into ordered sections the user types themselves. The AI never writes the
+// final code into the editor — it produces the scaffold (TODOs), the per-line
+// guide, and the reviewer's reference requirements. Token cost: 25
+
+app.post("/api/generate-build-plan", async (req, res) => {
+  const { goal, persona = "founder", programmingLanguages = [] } = req.body;
+  try {
+    const SYSTEM =
+      `You are Byuld's build-plan architect. A user described a web3 app they want to build.
+Design a SINGLE, real, deployable Solidity contract for their goal and break it into 3 to 5 ordered
+sections the user will TYPE themselves, one at a time. Byuld teaches; the user builds.
+
+HARD REQUIREMENTS — follow exactly:
+1. The contract must be a coherent whole. Byuld AUTOMATICALLY wraps the sections in:
+     // SPDX-License-Identifier: MIT
+     pragma solidity ^0.8.19;
+     contract <ContractName> { ...sections in order... }
+   So EVERY section contains ONLY the code that lives INSIDE the contract body.
+2. NEVER put the SPDX line, the pragma line, the "contract X {" declaration, or the contract's closing "}"
+   in any scaffold or guide step. (Function/struct/mapping braces are fine — just never the contract's own braces.)
+3. Section 1 holds the state variables and the constructor. Each later section holds one focused function
+   (or a small tightly-related group). When the section bodies are concatenated in order and wrapped, they
+   MUST form one valid, compilable contract.
+4. "scaffold" is what we put in the editor: ONLY "// Byuld:" teaching comments and "// TODO:" lines describing
+   what to write. Do NOT put function signatures, variable declarations, or any real code in the scaffold —
+   just the guiding comments. NEVER put the answer in the scaffold.
+5. "requirements" is the reviewer's private reference: precisely what correct code for that section must contain.
+6. "guide.steps[].code" is the COMPLETE, correct code the user types for that step — INCLUDING any function or
+   constructor signatures and their braces. Concatenating every guide.steps[].code across ALL sections in order,
+   then wrapping it per rule 1, MUST produce a complete, compilable contract. This is the source of truth.
+7. Keep it achievable: small, focused functions. Prefer a well-known contract pattern that fits the goal
+   (e.g. token, NFT mint, crowdfund, voting, tip jar, subscription, registry, staking, escrow).
+8. Include at least one realistic securityNote on the section where it matters (e.g. access control on a
+   mint/withdraw, reentrancy on a payout). Other sections may have securityNote = null.
+
+Write founderExplanation in plain English with everyday analogies.
+Write developerExplanation in a technical register${programmingLanguages.length ? `, drawing analogies to ${programmingLanguages.join(", ")}` : ""}.
+
+Respond in JSON ONLY, no markdown:
+{
+  "contractName": "PascalCase contract name",
+  "contractType": "short-slug",
+  "description": "one sentence, plain English",
+  "sections": [
+    {
+      "id": "short-slug-unique",
+      "title": "Section title",
+      "description": "one line",
+      "founderExplanation": "plain English with an analogy",
+      "developerExplanation": "technical framing",
+      "scaffold": "editor content: comments + TODO + empty bodies, NO answers",
+      "requirements": "exactly what correct code must contain (reviewer reference)",
+      "hint": "a conceptual hint, never code",
+      "securityNote": null,
+      "guide": {
+        "why": "plain-English reason this section exists",
+        "steps": [ { "do": "what to type and why", "code": "the exact line(s) to type" } ]
+      }
+    }
+  ],
+  "comprehension": {
+    "summaryPoints": ["3-4 things a correct plain-English summary of THIS contract must mention"],
+    "decisions": [
+      { "decision": "a real design decision in this contract", "question": "why does this matter? (the user must defend it)" }
+    ]
+  }
+}
+securityNote, when present, is { "severity": "critical"|"warning", "title": "string", "explanation": "plain English", "historicalExample": "real example or empty", "fix": "described in words, not code" }.
+Provide exactly 3 decisions.`;
+
+    const userMsg = `Goal: "${goal}"\nPersona: ${persona}\nKnown languages: ${programmingLanguages.join(", ") || "none"}`;
+    // The source of truth is the concatenated guide-step code, wrapped in the contract.
+    const wrap = (p) => {
+      const bodies = (p.sections || []).map((s) => (s.guide?.steps || []).map((st) => st.code).join("\n")).join("\n\n");
+      return `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.19;\n\ncontract ${p.contractName || "MyContract"} {\n${bodies}\n}`;
+    };
+
+    let plan = await claudeJSON(SYSTEM, userMsg, 8000);
+    let full = wrap(plan);
+    let compiled = compileSolidity(full);
+    if (compiled.error) {
+      // One self-repair pass: hand the compiler error back and regenerate.
+      plan = await claudeJSON(
+        SYSTEM,
+        `${userMsg}\n\nA previous attempt did NOT compile. Compiler error:\n${String(compiled.error).slice(0, 1500)}\nReturn a corrected plan whose concatenated guide-step code compiles cleanly.`,
+        8000
+      );
+      full = wrap(plan);
+      compiled = compileSolidity(full);
+    }
+    res.json({ ...plan, fullContract: full, compiles: !compiled.error, tokensUsed: 25 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/validate-understanding ──────────────────────────────────────────
+// Generic comprehension gate for AI-generated builds: judges a plain-English
+// summary and the user's defence of each design decision against the contract.
+// Never reveals answers. Token cost: 10
+
+app.post("/api/validate-understanding", async (req, res) => {
+  const { part, contractName, contractDescription, summaryPoints = [], decisions = [], summary, answers } = req.body;
+  try {
+    if (part === "summary") {
+      const result = await claudeJSON(
+        `You are validating whether a user genuinely understands the contract they just built ("${contractName}": ${contractDescription}).
+A correct plain-English summary should cover these points: ${summaryPoints.map((p, i) => `(${i + 1}) ${p}`).join("; ")}.
+It must be in their OWN words — if it reads as copied from scaffold comments, fail it.
+Be reasonably generous: if they clearly understand the key points in plain language, pass.
+Respond in JSON only: { "passed": true|false, "corrections": ["one sentence each — what's missing"] }`,
+        `User's summary: "${summary ?? ""}"`,
+        500
+      );
+      return res.json({ ...result, tokensUsed: 5 });
+    }
+    // part === "decisions"
+    const result = await claudeJSON(
+      `You are checking whether a user can DEFEND the key design decisions in the contract they built ("${contractName}": ${contractDescription}).
+For each decision, check for genuine reasoning that shows they understand the CONSEQUENCE — not keywords, not copied phrases.
+Fail any answer that is empty, "I don't know", "because Byuld said so", or shows no real understanding.
+Decisions and the user's answers:
+${decisions.map((d, i) => `(${i + 1}) Decision: "${d.decision}" — Question: "${d.question}" — User's answer: "${(answers && answers[i]) ?? ""}"`).join("\n")}
+Respond in JSON only: { "passed": true|false, "failures": ["which decision failed and why — one sentence each"] }`,
+      `Validate the ${decisions.length} answers above.`,
+      700
+    );
+    res.json({ ...result, tokensUsed: 10 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── POST /api/review-section ──────────────────────────────────────────────────
 // Reviews the user's code for one escrow section against the hidden solution.
 // NEVER writes code. Hints only. Token cost: 5
 
 app.post("/api/review-section", async (req, res) => {
-  const { sectionId, userCode, persona, programmingLanguages = [] } = req.body;
+  const { sectionId, userCode, persona, programmingLanguages = [], requirements, sectionTitle, contractName } = req.body;
+  // Escrow sections live server-side; AI-generated builds pass their own
+  // requirements/title from the client (the reviewer reference is never the answer code).
   const section = ESCROW_SECTIONS[sectionId];
-  if (!section) return res.status(400).json({ error: "Unknown sectionId" });
+  const reqText = requirements || section?.requirements;
+  const title = sectionTitle || section?.title;
+  if (!reqText) return res.status(400).json({ error: "Unknown section — no requirements provided" });
   const isFounder = persona === "founder";
 
   try {
     const result = await claudeJSON(
-      `You are Byuld's code reviewer for the P2P Escrow contract, reviewing ONE section.
+      `You are Byuld's code reviewer for ${contractName ? `the ${contractName} contract` : "a Solidity contract"}, reviewing ONE section.
 ${NEVER_WRITE_CODE}
 
-SECTION: ${section.title}
+SECTION: ${title}
 WHAT CORRECT CODE FOR THIS SECTION MUST CONTAIN:
-${section.requirements}
+${reqText}
 
 REVIEW RULES:
 1. Decide if the user's code is functionally equivalent to the requirements (variable names, formatting, and spacing may differ — judge the logic, not the style).

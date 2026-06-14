@@ -7,6 +7,7 @@ import SecurityAlert from "../../components/ui/SecurityAlert";
 import Spinner from "../../components/ui/Spinner";
 import { useApp } from "../../context/AppContext";
 import { getDemo } from "../../lib/demo";
+import { assembleContract } from "../../lib/assemble";
 import type { SecurityIssue } from "../../types";
 import Logo from "../../components/layout/Logo";
 
@@ -46,7 +47,7 @@ export default function FinalReview() {
 
   useEffect(() => {
     const run = async () => {
-      const assembled = state.sections.map(s => s.code).filter(Boolean).join("\n\n");
+      const assembled = assembleContract(state.sections, state.buildPlan);
 
       // Phase 1 — local static pattern check
       await sleep(1500);

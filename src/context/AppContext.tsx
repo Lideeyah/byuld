@@ -20,11 +20,11 @@ function saveToStorage(state: AppState) {
   try {
     const { email, walletAddress, isAuthenticated, persona, programmingLanguages, goal, projectName, contractType, chain,
             tokensUsed, tokensLimit, contractAddress, txHash, deployedAt,
-            sections, currentSection, messages } = state;
+            sections, currentSection, messages, buildPlan } = state;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       email, walletAddress, isAuthenticated, persona, programmingLanguages, goal, projectName, contractType, chain,
       tokensUsed, tokensLimit, contractAddress, txHash, deployedAt,
-      sections, currentSection, messages,
+      sections, currentSection, messages, buildPlan,
     }));
   } catch { /* ignore */ }
 }
@@ -50,6 +50,7 @@ const INITIAL: AppState = {
   contractType: persisted.contractType ?? "escrow",
   chain: (persisted.chain as Chain) ?? "sepolia",
   mode: "C",
+  buildPlan: persisted.buildPlan ?? null,
   sections: persisted.sections && persisted.sections.length ? persisted.sections : INITIAL_SECTIONS,
   messages: persisted.messages ?? [],
   // Token limit (disabled while UNLIMITED_TOKENS is on for testing)
@@ -83,11 +84,27 @@ function reducer(state: AppState, action: AppAction): AppState {
         persona: action.persona,
         programmingLanguages: action.languages ?? [],
         goal: "", projectName: "", contractType: "escrow", chain: "sepolia",
+        buildPlan: null,
         sections: freshSections(), currentSection: 0, messages: [],
         securityIssues: [], byuldFeePaid: false, gasFunded: false,
         contractAddress: "", txHash: "", deployedAt: 0,
         tokensUsed: 0,
       };
+    case "SET_BUILD_PLAN": {
+      // Adopt an AI-generated, tailored build. Rebuild the runtime section list
+      // from the plan and start fresh at the first section.
+      const sections: Section[] = action.plan.sections.map((s, i) => ({
+        id: s.id, title: s.title, status: i === 0 ? "active" : "locked", code: "",
+      }));
+      return {
+        ...state,
+        buildPlan: action.plan,
+        projectName: state.projectName || action.plan.contractName,
+        contractType: action.plan.contractType || state.contractType,
+        sections, currentSection: 0, messages: [], securityIssues: [],
+        contractAddress: "", txHash: "", deployedAt: 0,
+      };
+    }
     case "SET_EMAIL":
       return { ...state, email: action.email };
     case "SET_AUTHENTICATED":

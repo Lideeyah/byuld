@@ -1,8 +1,8 @@
 import { C, F, R } from "../../tokens";
-import type { EscrowSection } from "../../lib/contracts/escrow";
+import type { BuildSectionDef } from "../../types";
 
 interface Props {
-  section: EscrowSection;
+  section: BuildSectionDef;
   index: number;   // 0-based
   total: number;
   persona?: "founder" | "developer";

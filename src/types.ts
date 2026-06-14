@@ -15,6 +15,43 @@ export interface Section {
   code: string;
 }
 
+// A rich section definition the build UI renders. The hardcoded escrow sections
+// and AI-generated build plans both conform to this shape.
+export interface BuildSectionDef {
+  id: string;
+  title: string;
+  description: string;
+  founderExplanation: string;
+  developerExplanation: string;
+  scaffold: string;
+  hint: string;
+  securityNote: {
+    severity: "critical" | "warning";
+    title: string;
+    explanation: string;
+    historicalExample?: string;
+    fix: string;
+  } | null;
+  guide: { why: string; steps: { do: string; code: string }[] };
+  // Reviewer reference for AI-generated builds (escrow keeps this server-side).
+  requirements?: string;
+  solution?: string;
+}
+
+// A tailored build produced by /api/generate-build-plan for any web3 goal.
+export interface BuildPlan {
+  contractName: string;
+  contractType: string;
+  description: string;
+  sections: BuildSectionDef[];
+  comprehension: {
+    summaryPoints: string[];
+    decisions: { decision: string; question: string }[];
+  };
+  fullContract?: string;
+  compiles?: boolean;
+}
+
 export interface SecurityIssue {
   id: string;
   level: "critical" | "warning" | "info";
@@ -39,6 +76,7 @@ export interface AppState {
   chain: Chain;
   // build
   mode: BuildMode;
+  buildPlan: BuildPlan | null;   // null = default escrow contract (and the demo)
   sections: Section[];
   messages: Message[];
   tokensUsed: number;
@@ -74,4 +112,5 @@ export type AppAction =
   | { type: "SET_BYULD_FEE_PAID" }
   | { type: "SET_GAS_FUNDED" }
   | { type: "SET_DEPLOYED"; contractAddress: string; txHash: string }
+  | { type: "SET_BUILD_PLAN"; plan: BuildPlan }
   | { type: "RESET_SESSION"; persona: Persona | null; languages?: string[] };

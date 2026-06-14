@@ -6,6 +6,7 @@ import Button from "../components/ui/Button";
 import Spinner from "../components/ui/Spinner";
 import { useApp } from "../context/AppContext";
 import { getDemo } from "../lib/demo";
+import { assembleContract } from "../lib/assemble";
 
 type Step = "summary" | "deploying" | "error";
 
@@ -23,7 +24,7 @@ export default function Deploy() {
   const [error, setError] = useState<{ title: string; message: string } | null>(null);
 
   // Assemble the user's actual code from every section into one contract.
-  const assembled = state.sections.map((s) => s.code).filter(Boolean).join("\n\n");
+  const assembled = assembleContract(state.sections, state.buildPlan);
 
   const deployRef = useRef<() => void>(() => {});
   const deployStarted = useRef(false);

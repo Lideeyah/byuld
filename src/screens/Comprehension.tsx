@@ -63,7 +63,12 @@ export default function Comprehension() {
   const navigate = useNavigate();
   const { state } = useApp();
   const isDev = state.persona === "developer";
-  const recapSections = getSections();
+  // Generated builds carry their own sections + comprehension; escrow is the default.
+  const plan = state.buildPlan;
+  const generated = !!plan;
+  const recapSections = generated ? plan!.sections : getSections();
+  const planDecisions = generated ? (plan!.comprehension?.decisions ?? []).slice(0, 3) : [];
+  const total = generated ? 2 : 3;   // generated builds skip the escrow-specific bug-hunt
   const [showRecap, setShowRecap] = useState(false);
   const [part, setPart] = useState(1);          // current open part
   const [loading, setLoading] = useState(false);
@@ -85,9 +90,15 @@ export default function Comprehension() {
     if (summary.trim().length < 50 || loading) return;
     setLoading(true); setP1(null);
     try {
-      const r = await post<{ passed: boolean; corrections?: string[] }>("/api/validate-summary", { summary });
-      if (r.passed) { setP1({ kind: "pass", lines: ["You clearly understand what your contract does."] }); setPart(2); }
-      else setP1({ kind: "fail", lines: r.corrections?.length ? r.corrections : ["Try again — describe what the contract holds and when it releases."] });
+      const r = generated
+        ? await post<{ passed: boolean; corrections?: string[] }>("/api/validate-understanding", {
+            part: "summary", contractName: plan!.contractName, contractDescription: plan!.description,
+            summaryPoints: plan!.comprehension?.summaryPoints ?? [], summary,
+          })
+        : await post<{ passed: boolean; corrections?: string[] }>("/api/validate-summary", { summary });
+      // Generated builds skip the escrow bug-hunt: jump straight to the decisions part (3).
+      if (r.passed) { setP1({ kind: "pass", lines: ["You clearly understand what your contract does."] }); setPart(generated ? 3 : 2); }
+      else setP1({ kind: "fail", lines: r.corrections?.length ? r.corrections : ["Try again — describe what the contract does and the key thing it controls."] });
     } catch { setP1({ kind: "fail", lines: ["Something went wrong. Try again."] }); }
     setLoading(false);
   };
@@ -107,7 +118,12 @@ export default function Comprehension() {
     if (d1.trim().length < 15 || d2.trim().length < 15 || d3.trim().length < 15 || loading) return;
     setLoading(true); setP3(null);
     try {
-      const r = await post<{ passed: boolean; failures?: string[] }>("/api/validate-decisions", { answers: { order: d1, access: d2, state: d3 } });
+      const r = generated
+        ? await post<{ passed: boolean; failures?: string[] }>("/api/validate-understanding", {
+            part: "decisions", contractName: plan!.contractName, contractDescription: plan!.description,
+            decisions: planDecisions, answers: [d1, d2, d3],
+          })
+        : await post<{ passed: boolean; failures?: string[] }>("/api/validate-decisions", { answers: { order: d1, access: d2, state: d3 } });
       if (r.passed) setP3({ kind: "pass", lines: ["You can defend every decision you made. You understand what you built."] });
       else setP3({ kind: "fail", lines: r.failures?.length ? r.failures : ["One of your answers needs deeper reasoning. Think about the consequence, not the rule."] });
     } catch { setP3({ kind: "fail", lines: ["Something went wrong. Try again."] }); }
@@ -205,7 +221,7 @@ export default function Comprehension() {
 
         {/* PART 1 — Summarise */}
         <div style={cardWrap(part >= 1)}>
-          <StepHeader n={1} total={3} done={part > 1} title="What does your contract do?" />
+          <StepHeader n={1} total={total} done={part > 1} title="What does your contract do?" />
           <p style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body, marginBottom: "12px", lineHeight: 1.6 }}>
             Explain what this contract does in your own words. Don't copy from the comments.
           </p>
@@ -224,7 +240,8 @@ export default function Comprehension() {
           )}
         </div>
 
-        {/* PART 2 — Find the bug */}
+        {/* PART 2 — Find the bug (escrow only; generated builds skip straight to decisions) */}
+        {!generated && (
         <div style={cardWrap(part >= 2)}>
           <StepHeader n={2} total={3} done={part > 2} title="Find and explain the bug" />
           <p style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body, marginBottom: "12px", lineHeight: 1.6 }}>
@@ -252,14 +269,19 @@ export default function Comprehension() {
           )}
         </div>
 
+        )}
+
         {/* PART 3 — Defend decisions */}
         <div style={cardWrap(part >= 3)}>
-          <StepHeader n={3} total={3} done={!!p3 && p3.kind === "pass"} title="Defend your decisions" />
-          {[
-            { decision: "State updates before ETH is transferred in your payout functions.", label: "Why does this order matter?", val: d1, set: setD1 },
-            { decision: "Only the buyer can release funds. Only the arbiter can dispute.", label: "Why can't the seller release the funds themselves?", val: d2, set: setD2 },
-            { decision: "The contract has four states: Created, Locked, Released, Disputed.", label: "Why does the contract need to track its state at all?", val: d3, set: setD3 },
-          ].map((c, i) => (
+          <StepHeader n={generated ? 2 : 3} total={total} done={!!p3 && p3.kind === "pass"} title="Defend your decisions" />
+          {(generated
+            ? planDecisions.map((d, i) => ({ decision: d.decision, label: d.question, val: [d1, d2, d3][i], set: [setD1, setD2, setD3][i] }))
+            : [
+                { decision: "State updates before ETH is transferred in your payout functions.", label: "Why does this order matter?", val: d1, set: setD1 },
+                { decision: "Only the buyer can release funds. Only the arbiter can dispute.", label: "Why can't the seller release the funds themselves?", val: d2, set: setD2 },
+                { decision: "The contract has four states: Created, Locked, Released, Disputed.", label: "Why does the contract need to track its state at all?", val: d3, set: setD3 },
+              ]
+          ).map((c, i) => (
             <div key={i} style={{ padding: "14px 16px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: R.md, marginBottom: "12px" }}>
               <div style={{ fontSize: "13px", color: C.white, fontFamily: F.body, fontWeight: 600, marginBottom: "10px" }}>“{c.decision}”</div>
               <label style={{ fontSize: "12px", color: C.textSec, fontFamily: F.body, display: "block", marginBottom: "6px" }}>{c.label}</label>

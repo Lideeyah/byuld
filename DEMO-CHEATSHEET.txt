@@ -1,0 +1,84 @@
+========================================================
+  BYULD — DEMO RECORDING CHEAT SHEET
+  (comprehension answers + questions to ask the AI)
+========================================================
+
+Note: on the /demo route these auto-fill. This is your backup
+for a manual take. Answers are validated — they pass the gate.
+
+
+--------------------------------------------------------
+  COMPREHENSION GATE — PASTE-READY ANSWERS
+--------------------------------------------------------
+
+PART 1 — "What does your contract do?"
+(Prompt: explain in your own words, don't copy comments.)
+
+The contract itself holds the buyer's money locked inside it — not a person. There are three parties: the buyer who pays, the seller who delivers, and an arbiter who settles disputes. The funds are released to the seller when the buyer confirms delivery, or refunded to the buyer if the arbiter rules on a dispute.
+
+
+PART 2 — Find the bug
+
+> "Which line contains the bug? Describe it."
+
+The money is transferred to the seller BEFORE the state is updated to Released — the order of operations is wrong.
+
+> "What would happen if this was deployed with the bug?"
+
+An attacker's contract could re-enter the release function during the transfer and call it again and again before the state changes, draining all of the contract's funds.
+
+
+PART 3 — Defend your decisions
+
+> "State updates before ETH is transferred…" → Why does this order matter?
+
+Because if the money is sent before the state changes, an attacker can re-enter and call it repeatedly before the record updates, draining the contract.
+
+> "Only the buyer can release funds…" → Why can't the seller release the funds themselves?
+
+The seller has an incentive to take the money without delivering, so they must not be the one who can release the funds.
+
+> "The contract has four states…" → Why does the contract need to track its state at all?
+
+Tracking the state stops invalid actions — like releasing funds twice, or depositing after the contract is already locked.
+
+
+--------------------------------------------------------
+  QUESTIONS TO ASK THE AI (to show features on camera)
+--------------------------------------------------------
+
+THE "?" LINE-HELP  (hover a line -> click the "?" -> ask)
+
+  FOUNDER
+   - On: enum State { Created, Locked, Released, Disputed }
+       Ask: What does this do?
+   - On: require(msg.sender == buyer, ...)
+       Ask: Why does this line matter?
+
+  DEVELOPER
+   - On: modifier onlyBuyer() { ... }
+       Ask: Why is this here?
+   - On: state = State.Released;
+       Ask: Why does this line need to run before the transfer?
+
+
+THE CHAT (Ask Byuld) — free questions
+
+  FOUNDER
+   - In plain English, what is an escrow and why do I need three people?
+   - What's the worst thing that could go wrong with this contract?
+
+  DEVELOPER
+   - How is a Solidity modifier different from middleware in Express?
+   - Why is payable(seller).transfer(amount) risky, and what's the safer pattern?
+
+
+--------------------------------------------------------
+  BEFORE YOU RECORD
+--------------------------------------------------------
+  1. Warm Render once:  open  byuld.onrender.com/api/health
+     (free tier cold-starts ~50s; otherwise the first check hangs)
+  2. Wait for the Vercel redeploy to finish.
+  3. Open  byuld.vercel.app/demo  and hit record.
+     It runs founder -> developer -> stops, hands-free.
+========================================================

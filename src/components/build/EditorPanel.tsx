@@ -215,6 +215,11 @@ export default function EditorPanel({ onCodeChange, onAskLine, readOnlyCode, rea
             wordWrap: "on", tabSize: 4, automaticLayout: true, readOnly: viewingReadOnly,
             scrollbar: { verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
             overviewRulerBorder: false, hideCursorInOverviewRuler: true,
+            // Each section is an intentional fragment, so don't flag the contract's
+            // closing brace (opened in a different section) as an unmatched-bracket error.
+            matchBrackets: "never",
+            bracketPairColorization: { enabled: false },
+            guides: { bracketPairs: false, indentation: false },
           }}
           beforeMount={(monaco) => {
             if (!monaco.languages.getLanguages().some((l: any) => l.id === "sol")) {

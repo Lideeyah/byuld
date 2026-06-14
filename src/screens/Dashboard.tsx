@@ -5,6 +5,7 @@ import Logo from "../components/layout/Logo";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import TokenMeter from "../components/ui/TokenMeter";
+import AccountMenu from "../components/layout/AccountMenu";
 import { useApp } from "../context/AppContext";
 import { getDemo, setDemo, clearDemo } from "../lib/demo";
 
@@ -80,9 +81,7 @@ export default function Dashboard() {
           <div style={{ width: "120px" }}>
             <TokenMeter used={state.tokensUsed} limit={state.tokensLimit} />
           </div>
-          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: `${C.purple}22`, border: `1px solid ${C.purple}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", color: C.purple, fontWeight: 700 }}>
-            {firstName.charAt(0).toUpperCase()}
-          </div>
+          <AccountMenu />
         </div>
       </nav>
 

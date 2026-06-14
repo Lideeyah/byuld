@@ -2,6 +2,7 @@ import { C, F, R } from "../../tokens";
 import Logo from "./Logo";
 import ModeTag from "../ui/ModeTag";
 import TokenMeter from "../ui/TokenMeter";
+import AccountMenu from "./AccountMenu";
 import { useApp } from "../../context/AppContext";
 
 const CHAIN_LABELS: Record<string, string> = {
@@ -53,6 +54,8 @@ export default function BuildTopBar() {
       }}>
         {CHAIN_LABELS[state.chain] || state.chain}
       </div>
+
+      <AccountMenu />
     </div>
   );
 }

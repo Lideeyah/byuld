@@ -215,23 +215,47 @@ securityNote, when present, is { "severity": "critical"|"warning", "title": "str
 Provide exactly 3 decisions.`;
 
     const userMsg = `Goal: "${goal}"\nPersona: ${persona}\nKnown languages: ${programmingLanguages.join(", ") || "none"}`;
-    // The source of truth is the concatenated guide-step code, wrapped in the contract.
-    const wrap = (p) => {
-      const bodies = (p.sections || []).map((s) => (s.guide?.steps || []).map((st) => st.code).join("\n")).join("\n\n");
-      return `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.19;\n\ncontract ${p.contractName || "MyContract"} {\n${bodies}\n}`;
-    };
 
-    let plan = await claudeJSON(SYSTEM, userMsg, 8000);
-    let full = wrap(plan);
+    // The AI returns body-only sections. We deterministically add the file header
+    // (SPDX license + pragma + contract declaration) as TYPED, EXPLAINED steps at the
+    // start of section 1, and the closing brace at the end of the last section — so the
+    // learner actually types and understands the boilerplate (it's not hidden magic),
+    // and the final contract is just the sections concatenated.
+    const addHeaderFooter = (p) => {
+      const secs = p.sections || [];
+      if (!secs.length) return p;
+      const name = p.contractName || "MyContract";
+      const first = secs[0];
+      first.guide = first.guide || { why: "", steps: [] };
+      first.guide.steps = [
+        { do: "Every Solidity file opens by declaring its open-source license, so tools and other developers know how the code may be used. Type:", code: "// SPDX-License-Identifier: MIT" },
+        { do: "Next, lock the compiler version so your contract always behaves exactly the same way (0.8.19 is a modern, safe version). Type:", code: "pragma solidity ^0.8.19;" },
+        { do: "Now declare your contract — everything you build lives inside its { } braces. Type:", code: `\ncontract ${name} {` },
+        ...(first.guide.steps || []),
+      ];
+      first.scaffold = `// Byuld: Every Solidity contract begins with three lines — a license, a\n// compiler-version "pragma", and the contract declaration. You'll type those\n// first (the guide shows them), then add this section's code inside the contract.\n\n` + (first.scaffold || "");
+      if (first.requirements) first.requirements += ' The file must also begin with the "// SPDX-License-Identifier" comment, the "pragma solidity ^0.8.19;" line, and the contract declaration opening brace.';
+      const last = secs[secs.length - 1];
+      last.guide = last.guide || { why: "", steps: [] };
+      last.guide.steps = [...(last.guide.steps || []), { do: "Finally, close the contract by adding its closing brace at the very end of the file. Type:", code: "}" }];
+      if (last.requirements) last.requirements += " The contract must end with its closing brace }.";
+      return p;
+    };
+    // Now that the header/footer live in the sections, the contract is just the
+    // concatenated guide-step code — no separate wrapper.
+    const assemble = (p) => (p.sections || []).map((s) => (s.guide?.steps || []).map((st) => st.code).join("\n")).join("\n\n");
+
+    let plan = addHeaderFooter(await claudeJSON(SYSTEM, userMsg, 8000));
+    let full = assemble(plan);
     let compiled = compileSolidity(full);
     if (compiled.error) {
       // One self-repair pass: hand the compiler error back and regenerate.
-      plan = await claudeJSON(
+      plan = addHeaderFooter(await claudeJSON(
         SYSTEM,
-        `${userMsg}\n\nA previous attempt did NOT compile. Compiler error:\n${String(compiled.error).slice(0, 1500)}\nReturn a corrected plan whose concatenated guide-step code compiles cleanly.`,
+        `${userMsg}\n\nA previous attempt did NOT compile. Compiler error:\n${String(compiled.error).slice(0, 1500)}\nReturn a corrected plan whose section bodies form a valid contract once Byuld adds the SPDX/pragma/contract header and closing brace.`,
         8000
-      );
-      full = wrap(plan);
+      ));
+      full = assemble(plan);
       compiled = compileSolidity(full);
     }
     res.json({ ...plan, fullContract: full, compiles: !compiled.error, tokensUsed: 25 });

@@ -13,6 +13,11 @@ export default function DemoStart() {
 
   useEffect(() => {
     try { localStorage.setItem("byuld_seen_howto", "1"); } catch { /* ignore */ }
+    // Wake the API immediately (Render free tier cold-starts ~50s). Pinging at the
+    // very start of the demo gives it time to be warm before the first AI review and,
+    // crucially, before the real on-chain deploy — so the deploy is fast (~18s) instead
+    // of cold (~60s, which both looks stuck and can exceed the proxy timeout).
+    fetch("/api/health").catch(() => {});
     // Drive AppContext directly — never go through a reload, so a stale prior
     // session in localStorage can't clobber the seed (that was the old bug).
     dispatch({ type: "RESET_SESSION", persona: null });

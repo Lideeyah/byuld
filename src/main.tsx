@@ -31,6 +31,17 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string }
 
 const privyAppId = (import.meta.env.VITE_PRIVY_APP_ID ?? "").trim();
 
+// The self-running demo runs as ONE continuous in-app session that begins at /demo
+// (every step after that is in-app navigation, never a page reload). So if the page
+// is freshly loaded anywhere other than /demo while the demo flag is still set —
+// e.g. a mid-demo reload, or just opening the app normally — that's NOT the demo, and
+// we must clear the flag so the normal app is never hijacked by the demo autopilots.
+try {
+  if (window.location.pathname !== "/demo" && sessionStorage.getItem("byuld_demo")) {
+    sessionStorage.removeItem("byuld_demo");
+  }
+} catch { /* ignore */ }
+
 // Note: React.StrictMode is intentionally not used. Its dev-only double-invoke of
 // effects strands the self-running /demo autopilots (long-lived async scripts that
 // must run exactly once and not be cancelled by a synthetic unmount). StrictMode has

@@ -33,15 +33,19 @@ export default function Deploy() {
     setStep("deploying");
     setStage(0);
     setError(null);
+    // Advance the visual stages on a timer so a slow deploy (e.g. a cold API) still
+    // looks alive instead of frozen on "Compiling…". The real result overrides these.
+    const t1 = setTimeout(() => setStage(1), 5000);
+    const t2 = setTimeout(() => setStage(2), 13000);
+    const clearStageTimers = () => { clearTimeout(t1); clearTimeout(t2); };
     try {
       const res = await fetch("/api/deploy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source: assembled }),
       });
-      // advance the visual stages while the request resolves
-      setStage(1);
       const data = await res.json();
+      clearStageTimers();
       setStage(2);
 
       if (!res.ok) {
@@ -66,6 +70,7 @@ export default function Deploy() {
       }
       setTimeout(() => navigate("/success"), 600);
     } catch (err: unknown) {
+      clearStageTimers();
       setError({ title: "Network error", message: err instanceof Error ? err.message : "Could not reach the deploy service." });
       setStep("error");
     }

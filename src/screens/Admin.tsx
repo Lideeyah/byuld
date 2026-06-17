@@ -27,33 +27,63 @@ interface Metrics {
   recentUsers: UserRecord[];
 }
 
-// ─── Read metrics from localStorage ──────────────────────────────────────────
-// For MVP: reads the current session only. Production would use Supabase.
+// ─── Read metrics from the backend (real, cross-user) ─────────────────────────
+// The server tracks every user/deploy; this fetches them (password-gated). Falls
+// back to the current browser session if the API is unreachable.
 
-function readMetrics(): Metrics {
-  const raw = localStorage.getItem("byuld_session");
-  const session = raw ? JSON.parse(raw) : null;
-  const oneDayMs = 86_400_000;
+function localSessionUser(): UserRecord | null {
+  try {
+    const raw = localStorage.getItem("byuld_session");
+    const session = raw ? JSON.parse(raw) : null;
+    if (!session?.email) return null;
+    return {
+      email: session.email,
+      persona: session.persona ?? null,
+      chain: session.chain ?? "sepolia",
+      contractType: session.contractType ?? "escrow",
+      stage: session.deployedAt ? "deployed" : session.contractType ? "building" : "onboarding",
+      tokensUsed: session.tokensUsed ?? 0,
+      deployedAt: session.deployedAt ?? 0,
+      contractAddress: session.contractAddress ?? "",
+      signedUpAt: session.deployedAt || Date.now(),
+    };
+  } catch { return null; }
+}
+
+async function fetchMetrics(password: string): Promise<Metrics> {
   const now = Date.now();
+  const oneDayMs = 86_400_000;
+  let users: UserRecord[] = [];
+  try {
+    const res = await fetch("/api/admin/metrics", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      users = (data.recentUsers ?? []).map((u: any) => ({
+        email: u.email ?? "—",
+        persona: u.persona ?? null,
+        chain: u.chain ?? "sepolia",
+        contractType: u.contractType ?? "",
+        stage: u.stage ?? "onboarding",
+        tokensUsed: u.tokensUsed ?? 0,
+        deployedAt: u.deployedAt ?? 0,
+        contractAddress: u.contractAddress ?? "",
+        signedUpAt: u.signedUpAt ?? u.lastSeen ?? now,
+      }));
+    }
+  } catch { /* fall through to local */ }
 
-  // Real data only — the current browser session. No padding, no fabricated numbers.
-  const users: UserRecord[] = session?.email ? [{
-    email: session.email,
-    persona: session.persona ?? null,
-    chain: session.chain ?? "base-sepolia",
-    contractType: session.contractType ?? "escrow",
-    stage: session.deployedAt ? "deployed" : session.contractType ? "building" : "onboarding",
-    tokensUsed: session.tokensUsed ?? 0,
-    deployedAt: session.deployedAt ?? 0,
-    contractAddress: session.contractAddress ?? "",
-    signedUpAt: session.deployedAt || now,
-  }] : [];
+  // Always include the current browser session if it isn't already in the list.
+  const me = localSessionUser();
+  if (me && !users.some(u => u.email === me.email)) users.unshift(me);
 
   return {
     totalUsers: users.length,
     completedOnboarding: users.filter(u => u.persona).length,
     activeLast24h: users.filter(u => now - u.signedUpAt < oneDayMs).length,
-    totalDeployments: users.filter(u => !!u.deployedAt).length,
+    totalDeployments: users.filter(u => u.stage === "deployed" || !!u.contractAddress).length,
     dailySignups: [],
     recentUsers: users,
   };
@@ -118,10 +148,11 @@ export default function Admin() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  const refresh = useCallback(() => {
-    setMetrics(readMetrics());
+  const refresh = useCallback(async () => {
+    const m = await fetchMetrics(password);
+    setMetrics(m);
     setLastRefresh(new Date());
-  }, []);
+  }, [password]);
 
   // Auto-refresh every 60 seconds
   useEffect(() => {
@@ -209,7 +240,7 @@ export default function Admin() {
       {/* Stat cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "32px" }}>
         <StatCard label="Total users" value={metrics.totalUsers} sub="All time" />
-        <StatCard label="Completed onboarding" value={metrics.completedOnboarding} sub={`${Math.round(metrics.completedOnboarding / metrics.totalUsers * 100)}% conversion`} />
+        <StatCard label="Completed onboarding" value={metrics.completedOnboarding} sub={`${metrics.totalUsers ? Math.round(metrics.completedOnboarding / metrics.totalUsers * 100) : 0}% conversion`} />
         <StatCard label="Active last 24h" value={metrics.activeLast24h} sub="Unique sessions" />
         <StatCard label="Contracts deployed" value={metrics.totalDeployments} sub="All chains" />
       </div>
@@ -223,7 +254,7 @@ export default function Admin() {
             <div>
               <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "16px" }}>Daily signups</div>
               <div style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body, lineHeight: 1.6 }}>
-                Historical analytics need a connected database. This MVP reads only the current browser session.
+                Per-day history needs a database. Live totals and the user list below are tracked server-side.
               </div>
             </div>
           )}
@@ -273,7 +304,7 @@ export default function Admin() {
 
           {/* Padded with placeholder rows to show the table is live */}
           <div style={{ marginTop: "16px", padding: "12px 16px", background: C.surface2, borderRadius: R.md, fontSize: "12px", color: C.textMute, fontFamily: F.body }}>
-            📌 MVP: reads current browser session. Connect Supabase for multi-user tracking.
+            📡 Live: tracked server-side across all users. Records persist per server instance — connect a database for durability across redeploys.
           </div>
         </div>
       </div>

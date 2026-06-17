@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import crypto from "crypto";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import Anthropic from "@anthropic-ai/sdk";
@@ -27,6 +27,34 @@ app.use(express.json());
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? "" });
 const MODEL = "claude-sonnet-4-5";
+
+// ─── User/deploy tracking (for the admin dashboard) ─────────────────────────────
+// One record per email, upserted as the user progresses. Persisted best-effort to
+// disk (survives restarts within an instance; for durable storage across redeploys
+// connect a real DB). ADMIN_PASSWORD gates the read endpoint.
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "make byuldminetoserve#0";
+const DATA_DIR = resolve(__dirname, "data");
+const EVENTS_FILE = resolve(DATA_DIR, "users.json");
+let USERS = [];
+try { USERS = JSON.parse(readFileSync(EVENTS_FILE, "utf8")); } catch { USERS = []; }
+function saveUsers() {
+  try { mkdirSync(DATA_DIR, { recursive: true }); writeFileSync(EVENTS_FILE, JSON.stringify(USERS)); } catch { /* ephemeral fs is fine */ }
+}
+const STAGE_RANK = { signup: 0, onboarding: 1, building: 2, deployed: 3 };
+function trackUser(ev) {
+  if (!ev || !ev.email) return;
+  const now = Date.now();
+  const i = USERS.findIndex((u) => u.email === ev.email);
+  if (i < 0) {
+    USERS.push({ signedUpAt: now, ...ev, lastSeen: now });
+  } else {
+    const prev = USERS[i];
+    // Never regress the stage (e.g. a later "building" ping shouldn't undo "deployed").
+    const stage = (STAGE_RANK[ev.stage] ?? -1) >= (STAGE_RANK[prev.stage] ?? -1) ? ev.stage : prev.stage;
+    USERS[i] = { ...prev, ...ev, stage, signedUpAt: prev.signedUpAt || now, lastSeen: now };
+  }
+  saveUsers();
+}
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) throw new Error("STRIPE_SECRET_KEY not set");
@@ -563,6 +591,8 @@ app.post("/api/moonpay-webhook", (req, res) => {
 
 app.post("/api/notify-deploy", async (req, res) => {
   const { email, contractAddress, chain, contractType } = req.body;
+  // Record the deploy for the admin dashboard (works even without email service).
+  trackUser({ email, contractAddress, chain, contractType, stage: "deployed", deployedAt: Date.now() });
   if (!process.env.RESEND_API_KEY) return res.json({ ok: true, skipped: true });
   try {
     await fetch("https://api.resend.com/emails", {
@@ -577,6 +607,30 @@ app.post("/api/notify-deploy", async (req, res) => {
     });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── POST /api/track ───────────────────────────────────────────────────────────
+// Frontend records user progress (signup → onboarding → building → deployed).
+app.post("/api/track", (req, res) => {
+  const { email, persona, contractType, chain, tokensUsed, stage, contractAddress, deployedAt } = req.body || {};
+  trackUser({ email, persona, contractType, chain, tokensUsed, stage, contractAddress, deployedAt });
+  res.json({ ok: true });
+});
+
+// ─── POST /api/admin/metrics ───────────────────────────────────────────────────
+// Password-gated. Returns real users/deploys for the admin dashboard.
+app.post("/api/admin/metrics", (req, res) => {
+  if ((req.body?.password || "") !== ADMIN_PASSWORD) return res.status(401).json({ error: "Unauthorized" });
+  const now = Date.now();
+  const oneDay = 86_400_000;
+  const users = [...USERS].sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+  res.json({
+    totalUsers: users.length,
+    completedOnboarding: users.filter((u) => u.persona).length,
+    activeLast24h: users.filter((u) => now - (u.lastSeen || 0) < oneDay).length,
+    totalDeployments: users.filter((u) => u.stage === "deployed" || u.contractAddress).length,
+    recentUsers: users.slice(0, 100),
+  });
 });
 
 // ─── POST /api/compile — real solc-js compilation ──────────────────────────────

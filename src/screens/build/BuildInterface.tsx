@@ -127,6 +127,13 @@ export default function BuildInterface() {
     initialized.current = true;
     // Proactively wake the API (Render free tier sleeps) so the first check is instant.
     fetch("/api/health").catch(() => {});
+    // Record this user reaching the build, for the admin dashboard.
+    if (state.email) {
+      fetch("/api/track", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: state.email, persona: state.persona, contractType: state.contractType, chain: state.chain, tokensUsed: state.tokensUsed, stage: "building" }),
+      }).catch(() => {});
+    }
     loadSection(currentIdx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

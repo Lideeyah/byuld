@@ -11,6 +11,7 @@ import WalletSetup      from "./screens/onboarding/WalletSetup";
 import ChainSelection   from "./screens/onboarding/ChainSelection";
 import GoalCapture      from "./screens/onboarding/GoalCapture";
 import IntentReview     from "./screens/onboarding/IntentReview";
+import Primer           from "./screens/onboarding/Primer";
 import GoalClarification from "./screens/onboarding/GoalClarification";
 import BuildInterface   from "./screens/build/BuildInterface";
 import TokenExhaustion  from "./screens/build/TokenExhaustion";
@@ -84,6 +85,7 @@ export default function App() {
         <Route path="/onboarding/chain"   element={<AuthGuard><ChainSelection /></AuthGuard>} />
         <Route path="/onboarding/goal"    element={<AuthGuard><GoalCapture /></AuthGuard>} />
         <Route path="/onboarding/review"  element={<AuthGuard><IntentReview /></AuthGuard>} />
+        <Route path="/onboarding/primer"  element={<AuthGuard><Primer /></AuthGuard>} />
         <Route path="/onboarding/clarify" element={<AuthGuard><GoalClarification /></AuthGuard>} />
 
         <Route path="/build"              element={<AuthGuard><BuildInterface /></AuthGuard>} />

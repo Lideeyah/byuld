@@ -52,6 +52,10 @@ export interface BuildPlan {
     summaryPoints: string[];
     decisions: { decision: string; question: string }[];
   };
+  // Pre-build context (P2) + Web3 mental-model primer (P3).
+  estimatedMinutes?: number;
+  keyConcepts?: { concept: string; why: string }[];
+  mentalModel?: { q: string; a: string }[];
   fullContract?: string;
   compiles?: boolean;
 }

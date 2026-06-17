@@ -131,7 +131,7 @@ export default function BuildInterface() {
     if (state.email) {
       fetch("/api/track", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: state.email, persona: state.persona, contractType: state.contractType, chain: state.chain, tokensUsed: state.tokensUsed, stage: "building" }),
+        body: JSON.stringify({ email: state.email, persona: state.persona, experienceLevel: state.experienceLevel, contractType: state.contractType, chain: state.chain, tokensUsed: state.tokensUsed, stage: "building" }),
       }).catch(() => {});
     }
     loadSection(currentIdx);
@@ -152,7 +152,7 @@ export default function BuildInterface() {
     try {
       const res = await api<{ passed: boolean; type: string; message: string; severity: string | null; tokensUsed: number }>(
         "/api/review-section",
-        { sectionId: def.id, userCode: code, persona, programmingLanguages: state.programmingLanguages,
+        { sectionId: def.id, userCode: code, persona, experienceLevel: state.experienceLevel, programmingLanguages: state.programmingLanguages,
           requirements: def.requirements, sectionTitle: def.title, contractName: state.buildPlan?.contractName }
       );
       deductTokens(res.tokensUsed);
@@ -226,7 +226,7 @@ export default function BuildInterface() {
     try {
       const res = await api<{ passed: boolean; type: string; message: string; severity: string | null; tokensUsed: number }>(
         "/api/review-section",
-        { sectionId: def.id, userCode: codeRef.current, persona, programmingLanguages: state.programmingLanguages,
+        { sectionId: def.id, userCode: codeRef.current, persona, experienceLevel: state.experienceLevel, programmingLanguages: state.programmingLanguages,
           requirements: def.requirements, sectionTitle: def.title, contractName: state.buildPlan?.contractName }
       );
       deductTokens(res.tokensUsed);
@@ -262,7 +262,7 @@ export default function BuildInterface() {
     try {
       const res = await api<{ response: string; tokensUsed: number }>("/api/chat", {
         message: question, line, lineNumber, sectionId: def?.id,
-        persona, currentCode: codeRef.current, chatHistory: state.messages.slice(-8),
+        persona, experienceLevel: state.experienceLevel, currentCode: codeRef.current, chatHistory: state.messages.slice(-8),
       });
       addMsg("byuld", res.response);
       deductTokens(res.tokensUsed);
@@ -280,7 +280,7 @@ export default function BuildInterface() {
     try {
       const res = await api<{ response: string; tokensUsed: number }>("/api/chat", {
         message: text, sectionId: def?.id, currentCode: codeRef.current,
-        persona, chatHistory: state.messages.slice(-8),
+        persona, experienceLevel: state.experienceLevel, chatHistory: state.messages.slice(-8),
       });
       addMsg("byuld", res.response);
       deductTokens(res.tokensUsed);

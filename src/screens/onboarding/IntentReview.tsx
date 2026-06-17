@@ -9,6 +9,7 @@ import ProgressStep from "../../components/ui/ProgressStep";
 import { getSections } from "../../lib/contracts";
 import type { Section, BuildPlan } from "../../types";
 import { getDemo } from "../../lib/demo";
+import { getContext } from "../../lib/learnContent";
 
 const STEPS = ["You", "Wallet", "Chain", "Goal", "Review"];
 
@@ -84,7 +85,8 @@ export default function IntentReview() {
       }));
       dispatch({ type: "SET_SECTIONS", sections });
     }
-    navigate("/build");
+    // P3: pass through the Web3 mental-model primer before the editor.
+    navigate("/onboarding/primer");
   };
 
   // Demo autopilot: pause to show the plan, then start building.
@@ -141,6 +143,7 @@ export default function IntentReview() {
   const security = isGenerated
     ? plan!.sections.filter(s => s.securityNote).map(s => s.securityNote!.title)
     : ESCROW_SECURITY;
+  const ctx = getContext(plan);
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
@@ -151,10 +154,10 @@ export default function IntentReview() {
             <ProgressStep steps={STEPS} current={4} />
           </div>
           <h1 style={{ fontSize: "26px", fontWeight: 700, fontFamily: F.display, color: C.white, marginTop: "28px", marginBottom: "8px" }}>
-            Here's what Byuld designed
+            What You're About To Build
           </h1>
           <p style={{ fontSize: "14px", color: C.textSec, fontFamily: F.body }}>
-            Review this, then build it yourself, line by line.
+            A quick overview before you start. <span style={{ color: C.textMute }}>· ~{ctx.estimatedMinutes} min</span>
           </p>
         </div>
 
@@ -183,6 +186,19 @@ export default function IntentReview() {
                 <span key={s} style={{ fontSize: "12px", color: C.textSec, fontFamily: F.body, padding: "4px 10px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.full }}>✓ {s}</span>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* P2: key concepts + why they matter */}
+        {ctx.keyConcepts.length > 0 && (
+          <div style={{ padding: "18px 22px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg, marginBottom: "24px" }}>
+            <div style={{ fontSize: "11px", color: C.textMute, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "14px" }}>Key concepts — and why they matter</div>
+            {ctx.keyConcepts.map((k, i) => (
+              <div key={i} style={{ marginBottom: i < ctx.keyConcepts.length - 1 ? "12px" : 0 }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: C.white, fontFamily: F.body, marginBottom: "2px" }}>{k.concept}</div>
+                <div style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body, lineHeight: 1.5 }}>{k.why}</div>
+              </div>
+            ))}
           </div>
         )}
 

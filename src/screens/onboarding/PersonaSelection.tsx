@@ -4,43 +4,56 @@ import { C, F, R } from "../../tokens";
 import Logo from "../../components/layout/Logo";
 import Button from "../../components/ui/Button";
 import { useApp } from "../../context/AppContext";
-import type { Persona } from "../../types";
+import type { Persona, ExperienceLevel } from "../../types";
 import ProgressStep from "../../components/ui/ProgressStep";
 import { getDemo, DEMO_CONTENT, sleep } from "../../lib/demo";
 
-const OPTIONS: { persona: Persona; icon: string; title: string; desc: string }[] = [
-  {
-    persona: "founder",
-    icon: "◈",
-    title: "I have a product idea but I'm not a developer",
-    desc: "No coding experience needed. Byuld teaches you as you build — plain English, no jargon.",
-  },
-  {
-    persona: "developer",
-    icon: "⌨",
-    title: "I can code but I'm new to Web3",
-    desc: "Map what you already know to blockchain patterns. Skip the basics, focus on what's different.",
-  },
+// Self-described experience level (P1). Each maps onto the existing two-tone
+// persona ("founder" plain-language vs "developer" technical) and also records the
+// finer level for adaptive explanations (P4) and admin analytics.
+const OPTIONS: { level: Exclude<ExperienceLevel, null>; persona: Persona; icon: string; title: string; desc: string }[] = [
+  { level: "founder",   persona: "founder",   icon: "◈", title: "Non-Technical Founder", desc: "I have a product idea but I'm not a developer. Byuld teaches you as you build — plain English, no jargon." },
+  { level: "student",   persona: "founder",   icon: "✎", title: "Student", desc: "I'm here to learn. Byuld explains the concepts as you go, with extra context where it helps." },
+  { level: "developer", persona: "developer", icon: "⌨", title: "Developer", desc: "I can code but I'm new to Web3. Map what I already know to blockchain patterns — less hand-holding." },
+  { level: "expert",    persona: "developer", icon: "⚡", title: "Experienced Web3 Builder", desc: "I know smart contracts. Keep explanations minimal and let me move fast." },
 ];
 
 const LANGUAGES = ["JavaScript", "TypeScript", "Python", "Java", "Rust", "Go", "Other"];
 
+const personaOf = (level: ExperienceLevel): Persona =>
+  level === "developer" || level === "expert" ? "developer" : "founder";
+
 export default function PersonaSelection() {
   const navigate = useNavigate();
-  const { dispatch } = useApp();
-  const [selected, setSelected] = useState<Persona>(null);
-  const [hov, setHov] = useState<Persona>(null);
+  const { state, dispatch } = useApp();
+  const [selected, setSelected] = useState<ExperienceLevel>(null);
+  const [hov, setHov] = useState<ExperienceLevel>(null);
   const [langs, setLangs] = useState<string[]>([]);
 
+  const persona = personaOf(selected);
   const toggleLang = (l: string) =>
     setLangs(prev => prev.includes(l) ? prev.filter(x => x !== l) : [...prev, l]);
 
-  const canContinue = selected === "founder" || (selected === "developer" && langs.length > 0);
+  // Only the "Developer" level must pick languages (used for analogies); experts can skip.
+  const canContinue = !!selected && (selected !== "developer" || langs.length > 0);
+
+  const commit = (level: ExperienceLevel, languages: string[]) => {
+    const p = personaOf(level);
+    dispatch({ type: "SET_PERSONA", persona: p });
+    dispatch({ type: "SET_EXPERIENCE", level });
+    if (p === "developer" && languages.length) dispatch({ type: "SET_LANGUAGES", languages });
+    // Record the onboarding role for analytics (best-effort).
+    if (state.email) {
+      fetch("/api/track", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: state.email, persona: p, experienceLevel: level, stage: "onboarding" }),
+      }).catch(() => {});
+    }
+  };
 
   const handleContinue = () => {
     if (!canContinue) return;
-    dispatch({ type: "SET_PERSONA", persona: selected });
-    if (selected === "developer") dispatch({ type: "SET_LANGUAGES", languages: langs });
+    commit(selected, langs);
     navigate("/onboarding/wallet");
   };
 
@@ -48,11 +61,13 @@ export default function PersonaSelection() {
   useEffect(() => {
     const demo = getDemo();
     if (!demo) return;
+    const level: ExperienceLevel = demo.persona === "developer" ? "developer" : "founder";
     let cancelled = false;
     (async () => {
       await sleep(1100);
       if (cancelled) return;
-      setSelected(demo.persona);
+      setSelected(level);
+      let languages: string[] = [];
       if (demo.persona === "developer") {
         await sleep(700);
         for (const l of DEMO_CONTENT.developer.languages) {
@@ -60,11 +75,11 @@ export default function PersonaSelection() {
           setLangs(prev => prev.includes(l) ? prev : [...prev, l]);
           await sleep(400);
         }
+        languages = DEMO_CONTENT.developer.languages;
       }
       await sleep(900);
       if (cancelled) return;
-      dispatch({ type: "SET_PERSONA", persona: demo.persona });
-      if (demo.persona === "developer") dispatch({ type: "SET_LANGUAGES", languages: DEMO_CONTENT.developer.languages });
+      commit(level, languages);
       navigate("/onboarding/wallet");
     })();
     return () => { cancelled = true; };
@@ -78,7 +93,7 @@ export default function PersonaSelection() {
       padding: "40px 20px",
     }}>
       <div style={{ width: "100%", maxWidth: "560px" }}>
-        <div style={{ textAlign: "center", marginBottom: "40px" }}>
+        <div style={{ textAlign: "center", marginBottom: "36px" }}>
           <Logo size="md" />
           <div style={{ marginTop: "32px", marginBottom: "12px" }}>
             <ProgressStep steps={["You", "Wallet", "Chain", "Goal", "Review"]} current={0} />
@@ -91,50 +106,39 @@ export default function PersonaSelection() {
           </p>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "28px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
           {OPTIONS.map(opt => {
-            const isSelected = selected === opt.persona;
-            const isHov = hov === opt.persona;
+            const isSelected = selected === opt.level;
+            const isHov = hov === opt.level;
             return (
               <button
-                key={opt.persona}
-                onClick={() => setSelected(opt.persona)}
-                onMouseEnter={() => setHov(opt.persona)}
+                key={opt.level}
+                onClick={() => setSelected(opt.level)}
+                onMouseEnter={() => setHov(opt.level)}
                 onMouseLeave={() => setHov(null)}
                 style={{
-                  padding: "24px",
-                  background: isSelected ? `${C.purple}12` : isHov ? `${C.surface}` : C.surface,
-                  border: `1px solid ${isSelected ? C.purple : isHov ? C.border : C.border}`,
-                  borderRadius: R.lg,
-                  cursor: "pointer",
-                  textAlign: "left",
-                  transition: "all 0.15s",
+                  padding: "18px 20px",
+                  background: isSelected ? `${C.purple}12` : C.surface,
+                  border: `1px solid ${isSelected ? C.purple : C.border}`,
+                  borderRadius: R.lg, cursor: "pointer", textAlign: "left", transition: "all 0.15s",
                   boxShadow: isSelected ? `0 0 0 1px ${C.purple}44` : "none",
-                  display: "flex",
-                  gap: "20px",
-                  alignItems: "flex-start",
-                  outline: "none",
+                  display: "flex", gap: "16px", alignItems: "flex-start", outline: "none",
                 }}
               >
                 <div style={{
-                  width: "44px", height: "44px", borderRadius: R.lg, flexShrink: 0,
+                  width: "40px", height: "40px", borderRadius: R.lg, flexShrink: 0,
                   background: isSelected ? `${C.purple}25` : C.surface2,
                   border: `1px solid ${isSelected ? C.purple + "55" : C.border}`,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "22px", color: isSelected ? C.purple : C.textMute,
-                  transition: "all 0.15s",
+                  fontSize: "20px", color: isSelected ? C.purple : (isHov ? C.textSec : C.textMute), transition: "all 0.15s",
                 }}>
                   {opt.icon}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{
-                    fontSize: "15px", fontWeight: 600, fontFamily: F.body,
-                    color: isSelected ? C.white : C.textSec,
-                    marginBottom: "6px", transition: "color 0.15s",
-                  }}>
+                  <div style={{ fontSize: "15px", fontWeight: 600, fontFamily: F.body, color: isSelected ? C.white : C.textSec, marginBottom: "3px", transition: "color 0.15s" }}>
                     {opt.title}
                   </div>
-                  <div style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body, lineHeight: 1.55 }}>
+                  <div style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body, lineHeight: 1.5 }}>
                     {opt.desc}
                   </div>
                 </div>
@@ -142,8 +146,7 @@ export default function PersonaSelection() {
                   width: "20px", height: "20px", borderRadius: "50%", flexShrink: 0, marginTop: "2px",
                   border: `2px solid ${isSelected ? C.purple : C.border}`,
                   background: isSelected ? C.purple : "transparent",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  transition: "all 0.15s",
+                  display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s",
                 }}>
                   {isSelected && <div style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#fff" }} />}
                 </div>
@@ -152,11 +155,11 @@ export default function PersonaSelection() {
           })}
         </div>
 
-        {/* Developer language multi-select */}
-        {selected === "developer" && (
-          <div style={{ marginBottom: "28px", padding: "20px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg, animation: "fadeIn 0.2s ease" }}>
+        {/* Language multi-select for technical roles */}
+        {persona === "developer" && (
+          <div style={{ marginBottom: "24px", padding: "20px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg, animation: "fadeIn 0.2s ease" }}>
             <div style={{ fontSize: "14px", fontWeight: 600, color: C.white, fontFamily: F.body, marginBottom: "4px" }}>
-              What languages are you familiar with?
+              What languages are you familiar with?{selected === "expert" && <span style={{ color: C.textMute, fontWeight: 400 }}> (optional)</span>}
             </div>
             <div style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body, marginBottom: "14px" }}>
               Byuld uses these to explain Solidity in terms you already know.

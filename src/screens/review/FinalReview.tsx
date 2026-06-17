@@ -8,6 +8,7 @@ import Spinner from "../../components/ui/Spinner";
 import { useApp } from "../../context/AppContext";
 import { getDemo } from "../../lib/demo";
 import { assembleContract } from "../../lib/assemble";
+import FlowProgress from "../../components/ui/FlowProgress";
 import type { SecurityIssue } from "../../types";
 import Logo from "../../components/layout/Logo";
 
@@ -120,7 +121,11 @@ export default function FinalReview() {
         <span style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body }}>Final Security Review</span>
       </div>
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 20px", maxWidth: "640px", margin: "0 auto", width: "100%" }}>
+      <div style={{ padding: "16px 20px 0", maxWidth: "640px", margin: "0 auto", width: "100%" }}>
+        <FlowProgress phase={2} compact />
+      </div>
+
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 20px 60px", maxWidth: "640px", margin: "0 auto", width: "100%" }}>
         {/* Scanning states */}
         {phase !== "done" && (
           <div style={{ textAlign: "center", marginBottom: "48px" }}>

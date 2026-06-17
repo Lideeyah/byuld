@@ -7,6 +7,7 @@ import Spinner from "../components/ui/Spinner";
 import { useApp } from "../context/AppContext";
 import { getDemo } from "../lib/demo";
 import { assembleContract } from "../lib/assemble";
+import FlowProgress from "../components/ui/FlowProgress";
 
 type Step = "summary" | "deploying" | "error";
 
@@ -156,6 +157,7 @@ function Shell({ title, children }: { title: string; children: React.ReactNode }
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
       <div style={{ width: "100%", maxWidth: "460px" }}>
+        <div style={{ marginBottom: "24px" }}><FlowProgress phase={4} compact /></div>
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
           <Logo size="md" />
           <h2 style={{ fontSize: "22px", fontWeight: 700, fontFamily: F.display, color: C.white, marginTop: "24px" }}>{title}</h2>

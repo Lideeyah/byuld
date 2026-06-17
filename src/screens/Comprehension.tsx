@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import MonacoEditor from "@monaco-editor/react";
 import { C, F, R } from "../tokens";
 import Logo from "../components/layout/Logo";
+import FlowProgress from "../components/ui/FlowProgress";
 import Button from "../components/ui/Button";
 import Spinner from "../components/ui/Spinner";
 import { useApp } from "../context/AppContext";
@@ -178,6 +179,7 @@ export default function Comprehension() {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 20px" }}>
       <div style={{ width: "100%", maxWidth: "640px" }}>
+        <div style={{ marginBottom: "28px" }}><FlowProgress phase={3} compact /></div>
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
           <Logo size="md" />
           <h1 style={{ fontSize: "28px", fontWeight: 700, fontFamily: F.display, color: C.white, marginTop: "24px", marginBottom: "8px" }}>

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../../tokens";
 import BuildTopBar from "../../components/layout/BuildTopBar";
+import FlowProgress from "../../components/ui/FlowProgress";
 import BuildSidebar from "../../components/layout/BuildSidebar";
 import EditorPanel from "../../components/build/EditorPanel";
 import ChatPanel from "../../components/build/ChatPanel";
@@ -372,6 +373,9 @@ export default function BuildInterface() {
       {securityBlock && <SecurityBlockModal issue={securityBlock} onRecheck={handleRecheck} checking={recheckLoading} />}
 
       <BuildTopBar />
+      <div style={{ padding: "8px 16px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0 }}>
+        <FlowProgress phase={1} compact />
+      </div>
 
       {tokenWarning && !allComplete && (
         <div style={{ padding: "8px 20px", background: "rgba(245,166,35,0.08)", borderLeft: `3px solid ${C.warn}`, display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>

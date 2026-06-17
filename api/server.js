@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import pg from "pg";
 import Anthropic from "@anthropic-ai/sdk";
 import Stripe from "stripe";
 import solc from "solc";
@@ -34,27 +35,58 @@ const MODEL = "claude-sonnet-4-5";
 // connect a real DB). ADMIN_PASSWORD gates the read endpoint.
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "make byuldminetoserve#0";
 const DATA_DIR = resolve(__dirname, "data");
-const EVENTS_FILE = resolve(DATA_DIR, "users.json");
-let USERS = [];
-try { USERS = JSON.parse(readFileSync(EVENTS_FILE, "utf8")); } catch { USERS = []; }
-function saveUsers() {
-  try { mkdirSync(DATA_DIR, { recursive: true }); writeFileSync(EVENTS_FILE, JSON.stringify(USERS)); } catch { /* ephemeral fs is fine */ }
-}
-// Waitlist signups ("Get Early Access"). Persisted best-effort to disk.
-const WAITLIST_FILE = resolve(DATA_DIR, "waitlist.json");
-let WAITLIST = [];
-try { WAITLIST = JSON.parse(readFileSync(WAITLIST_FILE, "utf8")); } catch { WAITLIST = []; }
-function saveWaitlist() {
-  try { mkdirSync(DATA_DIR, { recursive: true }); writeFileSync(WAITLIST_FILE, JSON.stringify(WAITLIST)); } catch { /* ephemeral fs is fine */ }
-}
 
-// Feedback submissions — both the post-flow survey (kind="flow") and the
-// always-available quick feedback (kind="quick"). Persisted best-effort to disk.
-const FEEDBACK_FILE = resolve(DATA_DIR, "feedback.json");
+// Durable store: Postgres when DATABASE_URL is set (persists across redeploys),
+// otherwise a local JSON file (dev / no-DB fallback). Each dataset is one JSON value
+// in a tiny key/value table, so the in-memory upsert logic below stays unchanged.
+const DB_URL = process.env.DATABASE_URL || "";
+let pool = DB_URL ? new pg.Pool({
+  connectionString: DB_URL,
+  max: 3,
+  ssl: /localhost|127\.0\.0\.1/.test(DB_URL) ? false : { rejectUnauthorized: false },
+}) : null;
+
+let USERS = [];
+let WAITLIST = [];
 let FEEDBACK = [];
-try { FEEDBACK = JSON.parse(readFileSync(FEEDBACK_FILE, "utf8")); } catch { FEEDBACK = []; }
-function saveFeedback() {
-  try { mkdirSync(DATA_DIR, { recursive: true }); writeFileSync(FEEDBACK_FILE, JSON.stringify(FEEDBACK)); } catch { /* ephemeral fs is fine */ }
+
+const fileFor = (key) => resolve(DATA_DIR, `${key}.json`);
+const loadFile = (key) => { try { return JSON.parse(readFileSync(fileFor(key), "utf8")); } catch { return []; } };
+const saveFile = (key, val) => { try { mkdirSync(DATA_DIR, { recursive: true }); writeFileSync(fileFor(key), JSON.stringify(val)); } catch { /* ephemeral fs is fine */ } };
+
+async function dbSave(key, val) {
+  if (!pool) return;
+  try { await pool.query("INSERT INTO byuld_kv(key,value) VALUES($1,$2::jsonb) ON CONFLICT(key) DO UPDATE SET value=$2::jsonb", [key, JSON.stringify(val)]); }
+  catch (e) { console.error("[db save]", key, e.message); }
+}
+async function dbLoad(key) {
+  if (!pool) return null;
+  try { const r = await pool.query("SELECT value FROM byuld_kv WHERE key=$1", [key]); return r.rows[0]?.value ?? []; }
+  catch (e) { console.error("[db load]", key, e.message); return null; }
+}
+// Persist a dataset durably (fire-and-forget for the DB path — small, infrequent writes).
+const persist = (key, val) => { if (pool) dbSave(key, val); else saveFile(key, val); };
+function saveUsers() { persist("users", USERS); }
+function saveWaitlist() { persist("waitlist", WAITLIST); }
+function saveFeedback() { persist("feedback", FEEDBACK); }
+
+// Load all datasets on boot (awaited before the server starts listening).
+async function initStore() {
+  if (pool) {
+    try {
+      await pool.query("CREATE TABLE IF NOT EXISTS byuld_kv (key text PRIMARY KEY, value jsonb NOT NULL DEFAULT '[]')");
+      USERS = (await dbLoad("users")) || [];
+      WAITLIST = (await dbLoad("waitlist")) || [];
+      FEEDBACK = (await dbLoad("feedback")) || [];
+      console.log(`[Byuld store] Postgres connected — users:${USERS.length} waitlist:${WAITLIST.length} feedback:${FEEDBACK.length}`);
+      return;
+    } catch (e) {
+      console.error("[Byuld store] DB init failed, falling back to files:", e.message);
+      pool = null;
+    }
+  }
+  USERS = loadFile("users"); WAITLIST = loadFile("waitlist"); FEEDBACK = loadFile("feedback");
+  console.log("[Byuld store] file-backed (set DATABASE_URL for storage that survives redeploys)");
 }
 
 // Experience-adaptive tone (P4). Lightweight — adjusts depth/voice of explanations.
@@ -854,4 +886,6 @@ function mockSlitherCheck(code) {
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT ?? process.env.API_PORT ?? 3001;
-app.listen(PORT, () => console.log(`[Byuld API] :${PORT} — model: ${MODEL}`));
+initStore().finally(() => {
+  app.listen(PORT, () => console.log(`[Byuld API] :${PORT} — model: ${MODEL}`));
+});

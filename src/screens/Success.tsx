@@ -32,7 +32,7 @@ export default function Success() {
   // Demo autopilot: celebrate the deploy, then head to the dashboard.
   useEffect(() => {
     if (!getDemo()) return;
-    const t = setTimeout(() => navigate("/dashboard"), 5500);
+    const t = setTimeout(() => navigate("/feedback"), 5500);
     return () => clearTimeout(t);
   }, [navigate]);
 
@@ -116,8 +116,8 @@ export default function Success() {
 
         {/* Actions */}
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <Button fullWidth size="lg" onClick={() => navigate("/dashboard")}>
-            Go to my dashboard →
+          <Button fullWidth size="lg" onClick={() => navigate("/feedback")}>
+            Continue →
           </Button>
           <a href={explorerUrl} target="_blank" rel="noreferrer">
             <Button fullWidth variant="secondary">

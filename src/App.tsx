@@ -22,9 +22,11 @@ import PaymentFlow      from "./screens/payment/PaymentFlow";
 import Comprehension    from "./screens/Comprehension";
 import Deploy           from "./screens/Deploy";
 import Success          from "./screens/Success";
+import FeedbackSurvey    from "./screens/FeedbackSurvey";
 import Dashboard        from "./screens/Dashboard";
 import Admin            from "./screens/Admin";
 import DemoStart        from "./screens/DemoStart";
+import FeedbackWidget    from "./components/FeedbackWidget";
 
 // Keeps Privy auth state in sync with AppContext
 function PrivyAuthSync() {
@@ -100,12 +102,14 @@ export default function App() {
 
         <Route path="/payment"            element={<AuthGuard><PaymentFlow /></AuthGuard>} />
         <Route path="/success"            element={<AuthGuard><Success /></AuthGuard>} />
+        <Route path="/feedback"           element={<AuthGuard><FeedbackSurvey /></AuthGuard>} />
         <Route path="/dashboard"          element={<AuthGuard><Dashboard /></AuthGuard>} />
 
         <Route path="/admin"              element={<Admin />} />
         <Route path="/demo"               element={<DemoStart />} />
         <Route path="*"                   element={<Navigate to="/" replace />} />
       </Routes>
+      <FeedbackWidget />
     </>
   );
 }

@@ -26,6 +26,22 @@ interface WaitlistEntry {
   at: number;
 }
 
+interface FeedbackEntry {
+  kind: string;
+  email: string;
+  experienceLevel: string | null;
+  contractType: string | null;
+  rating: number | null;
+  understanding: number | null;
+  wouldUseAgain: string | null;
+  mostValuable: string | null;
+  confused: string;
+  learned: string;
+  issue: string;
+  improve: string;
+  at: number;
+}
+
 interface Metrics {
   totalUsers: number;
   completedOnboarding: number;
@@ -34,6 +50,11 @@ interface Metrics {
   dailySignups: number[];         // last 7 days
   recentUsers: UserRecord[];
   waitlist: WaitlistEntry[];
+  experienceDistribution: Record<string, number>;
+  waitlistRoles: Record<string, number>;
+  feedbackCount: number;
+  feedbackStats: { avgRating: number; avgUnderstanding: number; wouldUseAgain: Record<string, number>; mostValuable: Record<string, number> };
+  feedback: FeedbackEntry[];
 }
 
 // ─── Read metrics from the backend (real, cross-user) ─────────────────────────
@@ -64,6 +85,13 @@ async function fetchMetrics(password: string): Promise<Metrics> {
   const oneDayMs = 86_400_000;
   let users: UserRecord[] = [];
   let waitlist: WaitlistEntry[] = [];
+  const extra = {
+    experienceDistribution: {} as Record<string, number>,
+    waitlistRoles: {} as Record<string, number>,
+    feedbackCount: 0,
+    feedbackStats: { avgRating: 0, avgUnderstanding: 0, wouldUseAgain: {} as Record<string, number>, mostValuable: {} as Record<string, number> },
+    feedback: [] as FeedbackEntry[],
+  };
   try {
     const res = await fetch("/api/admin/metrics", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -72,6 +100,11 @@ async function fetchMetrics(password: string): Promise<Metrics> {
     if (res.ok) {
       const data = await res.json();
       waitlist = data.waitlist ?? [];
+      extra.experienceDistribution = data.experienceDistribution ?? {};
+      extra.waitlistRoles = data.waitlistRoles ?? {};
+      extra.feedbackCount = data.feedbackCount ?? 0;
+      extra.feedbackStats = data.feedbackStats ?? extra.feedbackStats;
+      extra.feedback = data.feedback ?? [];
       users = (data.recentUsers ?? []).map((u: any) => ({
         email: u.email ?? "—",
         persona: u.persona ?? null,
@@ -98,6 +131,7 @@ async function fetchMetrics(password: string): Promise<Metrics> {
     dailySignups: [],
     recentUsers: users,
     waitlist,
+    ...extra,
   };
 }
 
@@ -324,6 +358,95 @@ export default function Admin() {
             📡 Live: tracked server-side across all users. Records persist per server instance — connect a database for durability across redeploys.
           </div>
         </div>
+      </div>
+
+      {/* Experience-level distribution + feedback summary */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "32px" }}>
+        <div style={{ padding: "24px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg }}>
+          <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "16px" }}>Experience levels</div>
+          {Object.keys(metrics.experienceDistribution).length === 0 ? (
+            <p style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body }}>No onboarding data yet.</p>
+          ) : (
+            (["founder", "student", "developer", "expert"] as const).map(k => {
+              const labels: Record<string, string> = { founder: "Non-Technical Founder", student: "Student", developer: "Developer", expert: "Experienced Web3 Builder" };
+              const n = metrics.experienceDistribution[k] || 0;
+              const max = Math.max(1, ...Object.values(metrics.experienceDistribution));
+              return (
+                <div key={k} style={{ marginBottom: "12px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                    <span style={{ fontSize: "12px", color: C.textSec, fontFamily: F.body }}>{labels[k]}</span>
+                    <span style={{ fontSize: "12px", color: C.textMute, fontFamily: F.mono }}>{n}</span>
+                  </div>
+                  <div style={{ height: "5px", background: C.surface2, borderRadius: "3px", overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${Math.round((n / max) * 100)}%`, background: C.purple, borderRadius: "3px" }} />
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div style={{ padding: "24px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg }}>
+          <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "16px" }}>Feedback summary</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+            {[
+              { label: "Responses", value: metrics.feedbackCount },
+              { label: "Avg rating", value: metrics.feedbackStats.avgRating ? `${metrics.feedbackStats.avgRating}/5` : "—" },
+              { label: "Avg understanding", value: metrics.feedbackStats.avgUnderstanding ? `${metrics.feedbackStats.avgUnderstanding}/5` : "—" },
+            ].map(s => (
+              <div key={s.label}>
+                <div style={{ fontSize: "22px", fontWeight: 700, fontFamily: F.display, color: C.white, lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontSize: "10px", color: C.textMute, fontFamily: F.body, marginTop: "5px" }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, marginBottom: "6px" }}>Would use again</div>
+          <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
+            {["yes", "maybe", "no"].map(k => (
+              <span key={k} style={{ fontSize: "12px", color: C.textSec, fontFamily: F.body, padding: "4px 10px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: R.full, textTransform: "capitalize" }}>
+                {k}: <strong style={{ color: C.white }}>{metrics.feedbackStats.wouldUseAgain[k] || 0}</strong>
+              </span>
+            ))}
+          </div>
+          <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, marginBottom: "6px" }}>Most valuable</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+            {Object.keys(metrics.feedbackStats.mostValuable).length === 0
+              ? <span style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>—</span>
+              : Object.entries(metrics.feedbackStats.mostValuable).map(([k, v]) => (
+                <span key={k} style={{ fontSize: "12px", color: C.textSec, fontFamily: F.body, padding: "4px 10px", background: `${C.purple}12`, border: `1px solid ${C.purple}33`, borderRadius: R.full }}>{k}: <strong style={{ color: C.white }}>{v as number}</strong></span>
+              ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Feedback responses (learning outcomes + suggestions) */}
+      <div style={{ padding: "24px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg, marginBottom: "32px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, textTransform: "uppercase", letterSpacing: "0.06em" }}>Feedback responses</div>
+          <span style={{ fontSize: "12px", color: C.mint, fontFamily: F.body, fontWeight: 600 }}>{metrics.feedback.length} total</span>
+        </div>
+        {metrics.feedback.length === 0 ? (
+          <p style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body }}>No feedback yet — responses appear here after users finish or use the feedback button.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {metrics.feedback.slice(0, 40).map((f, i) => (
+              <div key={i} style={{ padding: "14px 16px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: R.md }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: R.full, textTransform: "uppercase", letterSpacing: "0.05em", background: f.kind === "quick" ? `${C.warn}18` : `${C.mint}18`, color: f.kind === "quick" ? C.warn : C.mint }}>{f.kind}</span>
+                  {f.rating ? <span style={{ fontSize: "12px", color: C.warn, fontFamily: F.body }}>{"★".repeat(f.rating)}</span> : null}
+                  {f.understanding ? <span style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body }}>understanding {f.understanding}/5</span> : null}
+                  {f.wouldUseAgain ? <span style={{ fontSize: "11px", color: C.textSec, fontFamily: F.body }}>· would use: {f.wouldUseAgain}</span> : null}
+                  {f.mostValuable ? <span style={{ fontSize: "11px", color: C.textSec, fontFamily: F.body }}>· valued: {f.mostValuable}</span> : null}
+                  <span style={{ marginLeft: "auto", fontSize: "11px", color: C.textMute, fontFamily: F.mono }}>{f.email || "anon"}</span>
+                </div>
+                {f.learned && <div style={{ fontSize: "12px", color: C.textSec, fontFamily: F.body, marginBottom: "4px" }}><span style={{ color: C.mint }}>Now understands:</span> {f.learned}</div>}
+                {f.confused && <div style={{ fontSize: "12px", color: C.textSec, fontFamily: F.body, marginBottom: "4px" }}><span style={{ color: C.warn }}>Confused/improve:</span> {f.confused}</div>}
+                {f.issue && <div style={{ fontSize: "12px", color: C.textSec, fontFamily: F.body, marginBottom: "4px" }}><span style={{ color: C.warn }}>Issue:</span> {f.issue}</div>}
+                {f.improve && <div style={{ fontSize: "12px", color: C.textSec, fontFamily: F.body }}><span style={{ color: C.purple }}>Would improve:</span> {f.improve}</div>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Waitlist signups */}

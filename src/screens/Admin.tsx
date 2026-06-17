@@ -18,6 +18,14 @@ interface UserRecord {
   signedUpAt: number;
 }
 
+interface WaitlistEntry {
+  name: string;
+  email: string;
+  role: string;
+  challenge: string;
+  at: number;
+}
+
 interface Metrics {
   totalUsers: number;
   completedOnboarding: number;
@@ -25,6 +33,7 @@ interface Metrics {
   totalDeployments: number;
   dailySignups: number[];         // last 7 days
   recentUsers: UserRecord[];
+  waitlist: WaitlistEntry[];
 }
 
 // ─── Read metrics from the backend (real, cross-user) ─────────────────────────
@@ -54,6 +63,7 @@ async function fetchMetrics(password: string): Promise<Metrics> {
   const now = Date.now();
   const oneDayMs = 86_400_000;
   let users: UserRecord[] = [];
+  let waitlist: WaitlistEntry[] = [];
   try {
     const res = await fetch("/api/admin/metrics", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -61,6 +71,7 @@ async function fetchMetrics(password: string): Promise<Metrics> {
     });
     if (res.ok) {
       const data = await res.json();
+      waitlist = data.waitlist ?? [];
       users = (data.recentUsers ?? []).map((u: any) => ({
         email: u.email ?? "—",
         persona: u.persona ?? null,
@@ -86,6 +97,7 @@ async function fetchMetrics(password: string): Promise<Metrics> {
     totalDeployments: users.filter(u => u.stage === "deployed" || !!u.contractAddress).length,
     dailySignups: [],
     recentUsers: users,
+    waitlist,
   };
 }
 
@@ -148,6 +160,11 @@ export default function Admin() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
+  const tryAuth = () => {
+    if (password.trim() === ADMIN_PASSWORD) { setAuthed(true); setError(""); }
+    else setError("Incorrect password.");
+  };
+
   const refresh = useCallback(async () => {
     const m = await fetchMetrics(password);
     setMetrics(m);
@@ -177,12 +194,7 @@ export default function Admin() {
               type="password"
               value={password}
               onChange={e => { setPassword(e.target.value); setError(""); }}
-              onKeyDown={e => {
-                if (e.key === "Enter") {
-                  if (password === ADMIN_PASSWORD) setAuthed(true);
-                  else setError("Incorrect password.");
-                }
-              }}
+              onKeyDown={e => { if (e.key === "Enter") tryAuth(); }}
               placeholder="Enter admin password"
               autoFocus
               style={{
@@ -194,10 +206,7 @@ export default function Admin() {
             />
             {error && <p style={{ fontSize: "12px", color: C.danger, fontFamily: F.body }}>{error}</p>}
             <button
-              onClick={() => {
-                if (password === ADMIN_PASSWORD) setAuthed(true);
-                else setError("Incorrect password.");
-              }}
+              onClick={tryAuth}
               style={{
                 padding: "12px", background: C.purple, border: "none",
                 borderRadius: R.md, color: "#fff", fontFamily: F.body,
@@ -212,7 +221,15 @@ export default function Admin() {
     );
   }
 
-  if (!metrics) return null;
+  // Don't blank the screen while the first fetch is in flight — show the shell.
+  if (!metrics) {
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "14px" }}>
+        <Logo size="md" />
+        <p style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body }}>Loading dashboard…</p>
+      </div>
+    );
+  }
 
   // ── Dashboard ──────────────────────────────────────────────────────────────
 
@@ -307,6 +324,40 @@ export default function Admin() {
             📡 Live: tracked server-side across all users. Records persist per server instance — connect a database for durability across redeploys.
           </div>
         </div>
+      </div>
+
+      {/* Waitlist signups */}
+      <div style={{ padding: "24px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg, marginBottom: "32px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Waitlist signups
+          </div>
+          <span style={{ fontSize: "12px", color: C.mint, fontFamily: F.body, fontWeight: 600 }}>{metrics.waitlist.length} total</span>
+        </div>
+        {metrics.waitlist.length === 0 ? (
+          <p style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body }}>No signups yet — they'll appear here when people request early access.</p>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                {["Name", "Email", "Role", "Biggest AI challenge", "When"].map(h => (
+                  <th key={h} style={{ textAlign: "left", fontSize: "11px", color: C.textMute, fontFamily: F.body, fontWeight: 600, padding: "4px 8px 12px 0", borderBottom: `1px solid ${C.border}` }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {metrics.waitlist.map((w, i) => (
+                <tr key={i}>
+                  <td style={{ padding: "10px 8px 10px 0", fontSize: "12px", color: C.white, fontFamily: F.body, whiteSpace: "nowrap" }}>{w.name || "—"}</td>
+                  <td style={{ padding: "10px 8px 10px 0", fontSize: "12px", color: C.textSec, fontFamily: F.mono }}>{w.email}</td>
+                  <td style={{ padding: "10px 8px 10px 0", fontSize: "12px", color: C.textSec, fontFamily: F.body }}>{w.role || "—"}</td>
+                  <td style={{ padding: "10px 8px 10px 0", fontSize: "12px", color: C.textSec, fontFamily: F.body, maxWidth: "320px" }}>{w.challenge || "—"}</td>
+                  <td style={{ padding: "10px 0", fontSize: "11px", color: C.textMute, fontFamily: F.mono, whiteSpace: "nowrap" }}>{w.at ? new Date(w.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Deployed contracts */}

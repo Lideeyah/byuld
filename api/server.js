@@ -40,6 +40,14 @@ try { USERS = JSON.parse(readFileSync(EVENTS_FILE, "utf8")); } catch { USERS = [
 function saveUsers() {
   try { mkdirSync(DATA_DIR, { recursive: true }); writeFileSync(EVENTS_FILE, JSON.stringify(USERS)); } catch { /* ephemeral fs is fine */ }
 }
+// Waitlist signups ("Get Early Access"). Persisted best-effort to disk.
+const WAITLIST_FILE = resolve(DATA_DIR, "waitlist.json");
+let WAITLIST = [];
+try { WAITLIST = JSON.parse(readFileSync(WAITLIST_FILE, "utf8")); } catch { WAITLIST = []; }
+function saveWaitlist() {
+  try { mkdirSync(DATA_DIR, { recursive: true }); writeFileSync(WAITLIST_FILE, JSON.stringify(WAITLIST)); } catch { /* ephemeral fs is fine */ }
+}
+
 const STAGE_RANK = { signup: 0, onboarding: 1, building: 2, deployed: 3 };
 function trackUser(ev) {
   if (!ev || !ev.email) return;
@@ -617,19 +625,39 @@ app.post("/api/track", (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── POST /api/waitlist ────────────────────────────────────────────────────────
+// "Get Early Access" signups. Upsert by email so re-submits update, not duplicate.
+app.post("/api/waitlist", (req, res) => {
+  const name = String(req.body?.name || "").trim();
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const role = String(req.body?.role || "").trim();
+  const challenge = String(req.body?.challenge || "").trim();
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "A valid email is required." });
+  if (!name) return res.status(400).json({ error: "Your name is required." });
+  const now = Date.now();
+  const entry = { name, email, role, challenge, at: now };
+  const i = WAITLIST.findIndex((w) => w.email === email);
+  if (i < 0) WAITLIST.push(entry); else WAITLIST[i] = { ...WAITLIST[i], ...entry };
+  saveWaitlist();
+  res.json({ ok: true });
+});
+
 // ─── POST /api/admin/metrics ───────────────────────────────────────────────────
-// Password-gated. Returns real users/deploys for the admin dashboard.
+// Password-gated. Returns real users/deploys/waitlist for the admin dashboard.
 app.post("/api/admin/metrics", (req, res) => {
-  if ((req.body?.password || "") !== ADMIN_PASSWORD) return res.status(401).json({ error: "Unauthorized" });
+  if (String(req.body?.password || "").trim() !== ADMIN_PASSWORD) return res.status(401).json({ error: "Unauthorized" });
   const now = Date.now();
   const oneDay = 86_400_000;
   const users = [...USERS].sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+  const waitlist = [...WAITLIST].sort((a, b) => (b.at || 0) - (a.at || 0));
   res.json({
     totalUsers: users.length,
     completedOnboarding: users.filter((u) => u.persona).length,
     activeLast24h: users.filter((u) => now - (u.lastSeen || 0) < oneDay).length,
     totalDeployments: users.filter((u) => u.stage === "deployed" || u.contractAddress).length,
+    waitlistCount: waitlist.length,
     recentUsers: users.slice(0, 100),
+    waitlist: waitlist.slice(0, 200),
   });
 });
 

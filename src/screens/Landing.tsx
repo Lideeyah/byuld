@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../tokens";
 import Logo from "../components/layout/Logo";
 import Button from "../components/ui/Button";
+import WaitlistModal from "../components/WaitlistModal";
 
 const DEMO_LINES = [
   "// Byuld: A secure escrow between buyer, seller & arbiter",
@@ -30,6 +31,7 @@ const FEATURES = [
 export default function Landing() {
   const navigate = useNavigate();
   const [visibleLines, setVisibleLines] = useState(0);
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [hov, setHov] = useState<number | null>(null);
 
   useEffect(() => {
@@ -90,8 +92,8 @@ export default function Landing() {
 
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center", marginBottom: "72px" }}>
           <Button size="lg" onClick={() => navigate("/auth")}>Start Building — It's Free</Button>
-          <Button variant="ghost" size="lg" onClick={() => document.getElementById("demo")?.scrollIntoView({ behavior: "smooth" })}>
-            See how it works
+          <Button variant="ghost" size="lg" onClick={() => setWaitlistOpen(true)}>
+            Get Early Access
           </Button>
         </div>
 
@@ -226,6 +228,8 @@ export default function Landing() {
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>© 2025 Byuld · Learn Web3 by building it</span>
       </div>
+
+      {waitlistOpen && <WaitlistModal onClose={() => setWaitlistOpen(false)} />}
     </div>
   );
 }

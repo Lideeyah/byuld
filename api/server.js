@@ -48,6 +48,26 @@ function saveWaitlist() {
   try { mkdirSync(DATA_DIR, { recursive: true }); writeFileSync(WAITLIST_FILE, JSON.stringify(WAITLIST)); } catch { /* ephemeral fs is fine */ }
 }
 
+// Feedback submissions — both the post-flow survey (kind="flow") and the
+// always-available quick feedback (kind="quick"). Persisted best-effort to disk.
+const FEEDBACK_FILE = resolve(DATA_DIR, "feedback.json");
+let FEEDBACK = [];
+try { FEEDBACK = JSON.parse(readFileSync(FEEDBACK_FILE, "utf8")); } catch { FEEDBACK = []; }
+function saveFeedback() {
+  try { mkdirSync(DATA_DIR, { recursive: true }); writeFileSync(FEEDBACK_FILE, JSON.stringify(FEEDBACK)); } catch { /* ephemeral fs is fine */ }
+}
+
+// Experience-adaptive tone (P4). Lightweight — adjusts depth/voice of explanations.
+function toneFor(experienceLevel) {
+  switch (experienceLevel) {
+    case "founder": return "Audience: a non-technical founder. Use plain language, avoid jargon, lean on everyday analogies, and add a little extra context.";
+    case "student": return "Audience: a student learning this. Be educational and add brief helpful context, but stay clear and concrete.";
+    case "developer": return "Audience: a working developer. Be technically precise and skip hand-holding — don't over-simplify.";
+    case "expert": return "Audience: an experienced Web3 builder. Be concise and minimal — assume the fundamentals, skip basics, get to what's specific.";
+    default: return "";
+  }
+}
+
 const STAGE_RANK = { signup: 0, onboarding: 1, building: 2, deployed: 3 };
 function trackUser(ev) {
   if (!ev || !ev.email) return;
@@ -245,10 +265,17 @@ Respond in JSON ONLY, no markdown:
     "decisions": [
       { "decision": "a real design decision in this contract", "question": "why does this matter? (the user must defend it)" }
     ]
-  }
+  },
+  "estimatedMinutes": 15,
+  "keyConcepts": [
+    { "concept": "a core concept this build uses (e.g. 'Access control', 'Holding funds in escrow')", "why": "one plain sentence on why it matters for THIS project" }
+  ],
+  "mentalModel": [
+    { "q": "a builder-mindset question about how this kind of Web3 system works (e.g. 'Why hold funds in the contract, not a person?')", "a": "a 1-2 sentence answer tailored to THIS project — conceptual, not code" }
+  ]
 }
 securityNote, when present, is { "severity": "critical"|"warning", "title": "string", "explanation": "plain English", "historicalExample": "real example or empty", "fix": "described in words, not code" }.
-Provide exactly 3 decisions.`;
+Provide exactly 3 decisions, 3-4 keyConcepts, and 4-5 mentalModel items. estimatedMinutes is a realistic number for a beginner to type and understand this build (typically 10-25). The mentalModel items must reflect what matters for THIS project type (e.g. escrow → trust, fund custody, disputes; NFT → ownership, verification; DAO → governance, voting).`;
 
     const userMsg = `Goal: "${goal}"\nPersona: ${persona}\nKnown languages: ${programmingLanguages.join(", ") || "none"}`;
 
@@ -342,7 +369,7 @@ Respond in JSON only: { "passed": true|false, "failures": ["which decision faile
 // NEVER writes code. Hints only. Token cost: 5
 
 app.post("/api/review-section", async (req, res) => {
-  const { sectionId, userCode, persona, programmingLanguages = [], requirements, sectionTitle, contractName } = req.body;
+  const { sectionId, userCode, persona, experienceLevel, programmingLanguages = [], requirements, sectionTitle, contractName } = req.body;
   // Escrow sections live server-side; AI-generated builds pass their own
   // requirements/title from the client (the reviewer reference is never the answer code).
   const section = ESCROW_SECTIONS[sectionId];
@@ -364,7 +391,7 @@ REVIEW RULES:
 1. Decide if the user's code is functionally equivalent to the requirements (variable names, formatting, and spacing may differ — judge the logic, not the style).
 2. Check for security issues, especially the Checks-Effects-Interactions / reentrancy pattern in the resolution section.
 3. If it is NOT done yet (still has TODO comments or empty bodies), set type to "incomplete".
-4. ${isFounder ? "Write the message in plain English with everyday analogies." : `Write the message in a technical register.${programmingLanguages.length ? ` The user knows ${programmingLanguages.join(", ")} — use comparisons to those languages where helpful.` : ""}`}
+4. ${isFounder ? "Write the message in plain English with everyday analogies." : `Write the message in a technical register.${programmingLanguages.length ? ` The user knows ${programmingLanguages.join(", ")} — use comparisons to those languages where helpful.` : ""}`} ${toneFor(experienceLevel)}
 5. In the "message" field, if they failed, give a conceptual HINT about what is wrong — never the corrected code. If they passed, explain in plain terms what their code actually does at runtime.
 
 Respond ONLY in JSON:
@@ -388,13 +415,14 @@ Respond ONLY in JSON:
 // Explains ONE line conceptually. Never writes code. Token cost: 2
 
 app.post("/api/explain-line", async (req, res) => {
-  const { line, lineNumber, sectionId, persona, programmingLanguages = [] } = req.body;
+  const { line, lineNumber, sectionId, persona, experienceLevel, programmingLanguages = [] } = req.body;
   const isFounder = persona === "founder";
 
   try {
     const explanation = await claude(
       `You are Byuld's tutor explaining ONE clicked line of Solidity to a Web3 learner.
 ${NEVER_WRITE_CODE}
+${toneFor(experienceLevel)}
 For a ${isFounder ? "non-technical founder: use plain English and real-world analogies, max 3 sentences" : `developer: be technically accurate, mention the pattern, max 3 sentences${programmingLanguages.length ? `. They know ${programmingLanguages.join(", ")} — use comparisons to those languages` : ""}`}.
 Just explain what this line/comment means and why it's there. Start with what the concept IS, never "This code...". Do NOT ask the user a question back. Do NOT assign a "task" or tell them to figure something out — they can already see what to write in the comment. Plain text only, no JSON, no code blocks.`,
       `Explain this line (line ${lineNumber}) from the ${sectionId} section: ${line}`,
@@ -410,7 +438,7 @@ Just explain what this line/comment means and why it's there. Start with what th
 // Freeform questions. NEVER writes code. Token cost: 3
 
 app.post("/api/chat", async (req, res) => {
-  const { message, sectionId, currentCode, persona, line, chatHistory = [] } = req.body;
+  const { message, sectionId, currentCode, persona, experienceLevel, line, chatHistory = [] } = req.body;
   const isFounder = persona === "founder";
 
   const messages = [
@@ -433,7 +461,7 @@ ${currentCode ? `The user's current code:\n\`\`\`solidity\n${currentCode.slice(0
 ${line ? `The user is asking about this specific line of code: ${line}. Answer in the context of their escrow contract and their specific goal.` : ""}
 
 If the user asks "what should I write", explain in words what the current section needs — you can name the exact values/variables (they're in the scaffold comments) and describe the syntax — but don't hand them the finished paste-ready line. Answer their actual question directly; don't deflect with a quiz.
-${isFounder ? "Plain English only. Use analogies." : "Be precise and technical."} Under 100 words.`,
+${isFounder ? "Plain English only. Use analogies." : "Be precise and technical."} ${toneFor(experienceLevel)} Under 100 words.`,
       messages,
     });
 
@@ -620,8 +648,34 @@ app.post("/api/notify-deploy", async (req, res) => {
 // ─── POST /api/track ───────────────────────────────────────────────────────────
 // Frontend records user progress (signup → onboarding → building → deployed).
 app.post("/api/track", (req, res) => {
-  const { email, persona, contractType, chain, tokensUsed, stage, contractAddress, deployedAt } = req.body || {};
-  trackUser({ email, persona, contractType, chain, tokensUsed, stage, contractAddress, deployedAt });
+  const { email, persona, experienceLevel, contractType, chain, tokensUsed, stage, contractAddress, deployedAt } = req.body || {};
+  trackUser({ email, persona, experienceLevel, contractType, chain, tokensUsed, stage, contractAddress, deployedAt });
+  res.json({ ok: true });
+});
+
+// ─── POST /api/feedback ────────────────────────────────────────────────────────
+// Post-flow survey (kind="flow") and always-available quick feedback (kind="quick").
+app.post("/api/feedback", (req, res) => {
+  const b = req.body || {};
+  const entry = {
+    kind: b.kind === "quick" ? "quick" : "flow",
+    email: String(b.email || "").trim().toLowerCase(),
+    experienceLevel: b.experienceLevel || null,
+    contractType: b.contractType || null,
+    // flow survey
+    rating: Number(b.rating) || null,
+    understanding: Number(b.understanding) || null,
+    wouldUseAgain: b.wouldUseAgain || null,        // "yes" | "maybe" | "no"
+    mostValuable: b.mostValuable || null,
+    confused: String(b.confused || "").trim(),
+    learned: String(b.learned || "").trim(),
+    // quick feedback
+    issue: String(b.issue || "").trim(),
+    improve: String(b.improve || "").trim(),
+    at: Date.now(),
+  };
+  FEEDBACK.push(entry);
+  saveFeedback();
   res.json({ ok: true });
 });
 
@@ -650,14 +704,31 @@ app.post("/api/admin/metrics", (req, res) => {
   const oneDay = 86_400_000;
   const users = [...USERS].sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
   const waitlist = [...WAITLIST].sort((a, b) => (b.at || 0) - (a.at || 0));
+  const feedback = [...FEEDBACK].sort((a, b) => (b.at || 0) - (a.at || 0));
+
+  // Distributions / aggregates.
+  const tally = (items, key) => items.reduce((m, x) => { const k = x[key]; if (k) m[k] = (m[k] || 0) + 1; return m; }, {});
+  const flow = feedback.filter((f) => f.kind === "flow");
+  const avg = (arr) => arr.length ? Math.round((arr.reduce((s, n) => s + n, 0) / arr.length) * 10) / 10 : 0;
+
   res.json({
     totalUsers: users.length,
     completedOnboarding: users.filter((u) => u.persona).length,
     activeLast24h: users.filter((u) => now - (u.lastSeen || 0) < oneDay).length,
     totalDeployments: users.filter((u) => u.stage === "deployed" || u.contractAddress).length,
+    experienceDistribution: tally(users, "experienceLevel"),
     waitlistCount: waitlist.length,
+    waitlistRoles: tally(waitlist, "role"),
+    feedbackCount: feedback.length,
+    feedbackStats: {
+      avgRating: avg(flow.map((f) => f.rating).filter(Boolean)),
+      avgUnderstanding: avg(flow.map((f) => f.understanding).filter(Boolean)),
+      wouldUseAgain: tally(flow, "wouldUseAgain"),
+      mostValuable: tally(flow, "mostValuable"),
+    },
     recentUsers: users.slice(0, 100),
     waitlist: waitlist.slice(0, 200),
+    feedback: feedback.slice(0, 200),
   });
 });
 

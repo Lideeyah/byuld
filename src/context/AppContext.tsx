@@ -18,11 +18,11 @@ function loadFromStorage(): Partial<AppState> {
 
 function saveToStorage(state: AppState) {
   try {
-    const { email, walletAddress, isAuthenticated, persona, programmingLanguages, goal, projectName, contractType, chain,
+    const { email, walletAddress, isAuthenticated, persona, experienceLevel, programmingLanguages, goal, projectName, contractType, chain,
             tokensUsed, tokensLimit, contractAddress, txHash, deployedAt,
             sections, currentSection, messages, buildPlan } = state;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      email, walletAddress, isAuthenticated, persona, programmingLanguages, goal, projectName, contractType, chain,
+      email, walletAddress, isAuthenticated, persona, experienceLevel, programmingLanguages, goal, projectName, contractType, chain,
       tokensUsed, tokensLimit, contractAddress, txHash, deployedAt,
       sections, currentSection, messages, buildPlan,
     }));
@@ -44,6 +44,7 @@ const INITIAL: AppState = {
   walletAddress: persisted.walletAddress ?? "",
   isAuthenticated: persisted.isAuthenticated ?? false,
   persona: persisted.persona ?? null,
+  experienceLevel: persisted.experienceLevel ?? null,
   programmingLanguages: persisted.programmingLanguages ?? [],
   goal: persisted.goal ?? "",
   projectName: persisted.projectName ?? "",
@@ -82,6 +83,7 @@ function reducer(state: AppState, action: AppAction): AppState {
         walletAddress: "0x7e10f4781e11f5b64Af32Ca0758bE7115654493c",
         isAuthenticated: true,
         persona: action.persona,
+        experienceLevel: action.persona,
         programmingLanguages: action.languages ?? [],
         goal: "", projectName: "", contractType: "escrow", chain: "sepolia",
         buildPlan: null,
@@ -111,6 +113,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, isAuthenticated: true, walletAddress: action.walletAddress };
     case "SET_PERSONA":
       return { ...state, persona: action.persona };
+    case "SET_EXPERIENCE":
+      return { ...state, experienceLevel: action.level };
     case "SET_LANGUAGES":
       return { ...state, programmingLanguages: action.languages };
     case "SET_GOAL":

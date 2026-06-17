@@ -1,4 +1,7 @@
 export type Persona = "founder" | "developer" | null;
+// Self-described experience level (P1). Drives tone/depth of explanations (P4)
+// and admin analytics. Maps onto a Persona for the existing two-tone AI prompts.
+export type ExperienceLevel = "founder" | "student" | "developer" | "expert" | null;
 export type Chain = "base" | "ethereum" | "polygon" | "sepolia" | "base-sepolia";
 export type BuildMode = "C" | "B" | "A";
 
@@ -70,6 +73,7 @@ export interface AppState {
   isAuthenticated: boolean;
   // onboarding
   persona: Persona;
+  experienceLevel: ExperienceLevel;
   programmingLanguages: string[];
   goal: string;
   projectName: string;
@@ -97,6 +101,7 @@ export type AppAction =
   | { type: "SET_EMAIL"; email: string }
   | { type: "SET_AUTHENTICATED"; walletAddress: string }
   | { type: "SET_PERSONA"; persona: Persona }
+  | { type: "SET_EXPERIENCE"; level: ExperienceLevel }
   | { type: "SET_LANGUAGES"; languages: string[] }
   | { type: "SET_GOAL"; goal: string; contractType: string; projectName?: string }
   | { type: "SET_SECTIONS"; sections: Section[] }

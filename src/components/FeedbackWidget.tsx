@@ -6,8 +6,9 @@ import { useApp } from "../context/AppContext";
 
 // P8 — always-available feedback. A small floating button that opens a lightweight
 // modal so users can report problems even if they never finish the flow.
-// Hidden on the marketing/auth/admin/demo-start surfaces.
-const HIDE_ON = ["/", "/auth", "/check-email", "/admin", "/demo"];
+// Hidden on marketing/auth/admin/demo-start, and on /build (which has its own
+// bottom-right "Ask Byuld" chat the button would otherwise overlap).
+const HIDE_ON = ["/", "/auth", "/check-email", "/admin", "/demo", "/build"];
 
 const textarea: React.CSSProperties = {
   width: "100%", padding: "10px 12px", background: C.surface2, border: `1px solid ${C.border}`,

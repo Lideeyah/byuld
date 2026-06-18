@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { C, F, R } from "../tokens";
 import Logo from "../components/layout/Logo";
 
-const ADMIN_PASSWORD = "make byuldminetoserve#0";
+// The admin password is NOT stored in the client. The server validates it (against
+// the ADMIN_PASSWORD env var), so the secret never ships in the frontend bundle.
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -194,9 +195,22 @@ export default function Admin() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  const tryAuth = () => {
-    if (password.trim() === ADMIN_PASSWORD) { setAuthed(true); setError(""); }
-    else setError("Incorrect password.");
+  const [checking, setChecking] = useState(false);
+
+  // Validate the password against the server (the secret lives only in the env var).
+  const tryAuth = async () => {
+    if (checking) return;
+    setChecking(true); setError("");
+    try {
+      const res = await fetch("/api/admin/metrics", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: password.trim() }),
+      });
+      if (res.status === 401) { setError("Incorrect password."); }
+      else if (!res.ok) { setError("Couldn't reach the server. Try again."); }
+      else { setAuthed(true); }
+    } catch { setError("Couldn't reach the server. Try again."); }
+    setChecking(false);
   };
 
   const refresh = useCallback(async () => {
@@ -241,13 +255,15 @@ export default function Admin() {
             {error && <p style={{ fontSize: "12px", color: C.danger, fontFamily: F.body }}>{error}</p>}
             <button
               onClick={tryAuth}
+              disabled={checking}
               style={{
                 padding: "12px", background: C.purple, border: "none",
                 borderRadius: R.md, color: "#fff", fontFamily: F.body,
-                fontSize: "14px", fontWeight: 600, cursor: "pointer",
+                fontSize: "14px", fontWeight: 600, cursor: checking ? "default" : "pointer",
+                opacity: checking ? 0.7 : 1,
               }}
             >
-              Access dashboard →
+              {checking ? "Checking…" : "Access dashboard →"}
             </button>
           </div>
         </div>

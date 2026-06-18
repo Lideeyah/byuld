@@ -7,6 +7,7 @@ import Spinner from "../components/ui/Spinner";
 import { useApp } from "../context/AppContext";
 import { getDemo } from "../lib/demo";
 import { assembleContract } from "../lib/assemble";
+import { recordDeploy } from "../lib/builds";
 import FlowProgress from "../components/ui/FlowProgress";
 
 type Step = "summary" | "deploying" | "error";
@@ -63,10 +64,21 @@ export default function Deploy() {
 
       dispatch({ type: "SET_CHAIN", chain: "sepolia" });
       dispatch({ type: "SET_DEPLOYED", contractAddress: data.contractAddress, txHash: data.txHash });
+      // Add to the user's build history so it shows on their dashboard.
+      recordDeploy({
+        email: state.email,
+        name: state.projectName || state.goal || state.buildPlan?.contractName || "Smart contract",
+        contractType: state.buildPlan?.contractType || state.contractType || "escrow",
+        chain: "sepolia",
+        contractAddress: data.contractAddress,
+        txHash: data.txHash,
+        goal: state.goal,
+        deployedAt: Date.now(),
+      });
       if (state.email) {
         fetch("/api/notify-deploy", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: state.email, contractAddress: data.contractAddress, chain: "sepolia", contractType: "escrow", txHash: data.txHash }),
+          body: JSON.stringify({ email: state.email, contractAddress: data.contractAddress, chain: "sepolia", contractType: state.buildPlan?.contractType || state.contractType || "escrow", txHash: data.txHash }),
         }).catch(() => {});
       }
       setTimeout(() => navigate("/success"), 600);

@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../../tokens";
 import Logo from "./Logo";
 import ModeTag from "../ui/ModeTag";
@@ -15,6 +16,7 @@ const CHAIN_LABELS: Record<string, string> = {
 
 export default function BuildTopBar() {
   const { state } = useApp();
+  const navigate = useNavigate();
   // Prefer the friendly AI-generated name; fall back to the raw goal only if absent.
   const label = state.projectName || state.goal;
   const sessionName = label.length > 40 ? label.slice(0, 40) + "…" : label;
@@ -30,7 +32,14 @@ export default function BuildTopBar() {
       gap: "16px",
       flexShrink: 0,
     }}>
-      <Logo size="sm" />
+      <button
+        onClick={() => navigate("/dashboard")}
+        title="Go to your dashboard"
+        aria-label="Go to your dashboard"
+        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center" }}
+      >
+        <Logo size="sm" />
+      </button>
 
       <div style={{ width: "1px", height: "20px", background: C.border }} />
 

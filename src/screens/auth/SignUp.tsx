@@ -10,13 +10,16 @@ function isValidEmail(e: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); 
 
 export default function SignUp() {
   const navigate = useNavigate();
-  const { dispatch } = useApp();
+  const { state, dispatch } = useApp();
   const { authenticated, ready } = usePrivy();
   const { sendCode } = useLoginWithEmail();
+  // Returning users (already onboarded on this device) skip straight to their
+  // dashboard — signing in shouldn't replay the whole onboarding.
+  const afterAuth = () => navigate(state.persona ? "/dashboard" : "/onboarding/persona");
   const { connectWallet } = useConnectWallet({
     onSuccess({ wallet }) {
       dispatch({ type: "SET_AUTHENTICATED", walletAddress: wallet.address });
-      navigate("/onboarding/persona");
+      afterAuth();
     },
     onError(err) {
       const code = String(err ?? "");
@@ -41,7 +44,7 @@ export default function SignUp() {
   const [error, setError] = useState("");
   const [focused, setFocused] = useState(false);
 
-  useEffect(() => { if (authenticated) navigate("/onboarding/persona"); }, [authenticated]);
+  useEffect(() => { if (authenticated) afterAuth(); }, [authenticated]);
 
   const valid = isValidEmail(email);
 
@@ -71,10 +74,12 @@ export default function SignUp() {
         </div>
 
         <h1 style={{ fontSize: "24px", fontWeight: 700, fontFamily: F.display, color: C.white, textAlign: "center", marginBottom: "8px" }}>
-          Create your account
+          {state.persona ? "Welcome back" : "Sign in to Byuld"}
         </h1>
         <p style={{ fontSize: "14px", color: C.textSec, fontFamily: F.body, textAlign: "center", lineHeight: 1.55, marginBottom: "28px" }}>
-          Enter your email to get started. We'll create your Web3 wallet automatically.
+          {state.persona
+            ? "Enter your email and we'll send a one-time link to sign you in."
+            : "Just your email — we'll send a one-time link and set up your wallet automatically. No passwords."}
         </p>
 
         {/* Email field */}

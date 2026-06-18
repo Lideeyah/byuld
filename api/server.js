@@ -240,8 +240,12 @@ app.post("/api/generate-build-plan", async (req, res) => {
   try {
     const SYSTEM =
       `You are Byuld's build-plan architect. A user described a web3 app they want to build.
-Design a SINGLE, real, deployable Solidity contract for their goal and break it into 3 to 5 ordered
+Design a SINGLE, real, deployable Solidity contract for their goal and break it into EXACTLY 3 to 4 ordered
 sections the user will TYPE themselves, one at a time. Byuld teaches; the user builds.
+
+BE FAST AND CONCISE — this is generated live while the user waits. Keep all prose TIGHT: every
+"description", "founderExplanation", "developerExplanation", "hint", "why", and "do" is ONE short sentence.
+Scaffolds are a few comment lines, not paragraphs. Output only what the schema needs — no filler.
 
 HARD REQUIREMENTS — follow exactly:
 1. The contract must be a coherent whole. Byuld AUTOMATICALLY wraps the sections in:
@@ -340,7 +344,7 @@ Provide exactly 3 decisions, 3-4 keyConcepts, and 4-5 mentalModel items. estimat
     // concatenated guide-step code — no separate wrapper.
     const assemble = (p) => (p.sections || []).map((s) => (s.guide?.steps || []).map((st) => st.code).join("\n")).join("\n\n");
 
-    let plan = addHeaderFooter(await claudeJSON(SYSTEM, userMsg, 8000));
+    let plan = addHeaderFooter(await claudeJSON(SYSTEM, userMsg, 6000));
     let full = assemble(plan);
     let compiled = compileSolidity(full);
     if (compiled.error) {
@@ -348,7 +352,7 @@ Provide exactly 3 decisions, 3-4 keyConcepts, and 4-5 mentalModel items. estimat
       plan = addHeaderFooter(await claudeJSON(
         SYSTEM,
         `${userMsg}\n\nA previous attempt did NOT compile. Compiler error:\n${String(compiled.error).slice(0, 1500)}\nReturn a corrected plan whose section bodies form a valid contract once Byuld adds the SPDX/pragma/contract header and closing brace.`,
-        8000
+        6000
       ));
       full = assemble(plan);
       compiled = compileSolidity(full);

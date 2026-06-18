@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../../tokens";
 import BuildTopBar from "../../components/layout/BuildTopBar";
 import FlowProgress from "../../components/ui/FlowProgress";
+import { ClipboardList, MessageCircle, Check, AlertTriangle } from "lucide-react";
 import BuildSidebar from "../../components/layout/BuildSidebar";
 import EditorPanel from "../../components/build/EditorPanel";
 import ChatPanel from "../../components/build/ChatPanel";
@@ -41,7 +42,7 @@ function SecurityBlockModal({ issue, onRecheck, checking }: {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(255,90,90,0.10)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
       <div style={{ width: "100%", maxWidth: "560px", background: C.surface, border: `2px solid ${C.danger}`, borderRadius: R.xl, padding: "32px" }}>
-        <div style={{ fontSize: "11px", color: C.danger, fontFamily: F.body, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "12px" }}>⚠ Security Issue Found</div>
+        <div style={{ fontSize: "11px", color: C.danger, fontFamily: F.body, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "12px", display: "flex", alignItems: "center", gap: "5px" }}><AlertTriangle size={12} /> Security Issue Found</div>
         <h2 style={{ fontSize: "20px", fontWeight: 700, fontFamily: F.display, color: C.danger, marginBottom: "16px" }}>{issue.name}</h2>
         <p style={{ fontSize: "13px", color: C.textSec, fontFamily: F.body, lineHeight: 1.7, marginBottom: "16px" }}>{issue.explanation}</p>
         {issue.historicalExample && (
@@ -174,7 +175,7 @@ export default function BuildInterface() {
 
       if (res.passed) {
         setReviewState("approved");
-        addMsg("byuld", `✓ ${res.message}`);
+        addMsg("byuld", res.message);
         // Persist the exact code that passed — this is what the final contract is
         // assembled from at deploy time. Without it, deploy would compile the scaffold.
         dispatch({ type: "UPDATE_SECTION_CODE", id: def.id, code });
@@ -184,7 +185,7 @@ export default function BuildInterface() {
           setTimeout(() => loadSection(nextIdx), 1200);
         } else {
           setTimeout(() => {
-            addMsg("byuld", "🎉 All four sections complete. Let's run the security review before deploying.");
+            addMsg("byuld", "All four sections complete. Let's run the security review before deploying.");
             setTimeout(() => navigate("/review"), 1800);
           }, 800);
         }
@@ -195,7 +196,7 @@ export default function BuildInterface() {
     } catch {
       setReviewState("rejected");
       setRightTab("ask");   // surface the error in chat so it's not silently nothing
-      addMsg("byuld", "⚠ I couldn't reach the reviewer just now. The AI service may be waking up or temporarily unavailable. Wait a few seconds and press **Check my code** again.");
+      addMsg("byuld", "I couldn't reach the reviewer just now. The AI service may be waking up or temporarily unavailable. Wait a few seconds and press **Check my code** again.");
     } finally {
       setAiLoading(false);
     }
@@ -237,7 +238,7 @@ export default function BuildInterface() {
         setSecurityBlock(null);
         if (res.passed) {
           setReviewState("approved");
-          addMsg("byuld", `✓ Resolved. ${res.message}`);
+          addMsg("byuld", `Resolved. ${res.message}`);
           dispatch({ type: "UPDATE_SECTION_CODE", id: def.id, code: codeRef.current });
           dispatch({ type: "COMPLETE_SECTION", id: def.id });
           const nextIdx = currentIdx + 1;
@@ -379,7 +380,7 @@ export default function BuildInterface() {
 
       {tokenWarning && !allComplete && (
         <div style={{ padding: "8px 20px", background: "rgba(245,166,35,0.08)", borderLeft: `3px solid ${C.warn}`, display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
-          <span style={{ fontSize: "13px", color: C.warn, fontFamily: F.body }}>⚠ Running low — {state.tokensLimit - state.tokensUsed} tokens left today.</span>
+          <span style={{ fontSize: "13px", color: C.warn, fontFamily: F.body, display: "inline-flex", alignItems: "center", gap: "5px" }}><AlertTriangle size={13} /> Running low — {state.tokensLimit - state.tokensUsed} tokens left today.</span>
           <button onClick={() => navigate("/build/tokens")} style={{ marginLeft: "auto", background: "none", border: `1px solid ${C.warn}55`, borderRadius: R.md, color: C.warn, fontFamily: F.body, fontSize: "12px", cursor: "pointer", padding: "4px 10px" }}>Manage</button>
         </div>
       )}
@@ -404,7 +405,7 @@ export default function BuildInterface() {
             {allComplete
               ? <Button size="sm" variant="mint" onClick={() => navigate("/review")}>Security Review →</Button>
               : <Button size="sm" onClick={handleCheck} disabled={aiLoading}>
-                  {aiLoading ? <><Spinner size={13} color="#fff" /> Checking…</> : "✓ Check my code"}
+                  {aiLoading ? <><Spinner size={13} color="#fff" /> Checking…</> : <><Check size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Check my code</>}
                 </Button>
             }
           </div>
@@ -413,13 +414,14 @@ export default function BuildInterface() {
         {/* Right panel — tabbed: one focus at a time, full-height & readable */}
         <div style={{ flex: "0 0 440px", display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden", borderLeft: `1px solid ${C.border}`, background: C.surface }}>
           <div style={{ display: "flex", flexShrink: 0, borderBottom: `1px solid ${C.border}` }}>
-            {([["guide", "📋 Your task"], ["ask", "💬 Ask Byuld"]] as const).map(([id, label]) => (
+            {([["guide", "Your task", ClipboardList], ["ask", "Ask Byuld", MessageCircle]] as const).map(([id, label, Icon]) => (
               <button key={id} onClick={() => setRightTab(id)} style={{
                 flex: 1, padding: "14px 12px", background: "none", border: "none", cursor: "pointer",
                 borderBottom: `2px solid ${rightTab === id ? C.purple : "transparent"}`,
                 color: rightTab === id ? C.white : C.textMute,
                 fontFamily: F.body, fontSize: "13px", fontWeight: 600, transition: "all 0.15s",
-              }}>{label}</button>
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "7px",
+              }}><Icon size={15} /> {label}</button>
             ))}
           </div>
 
@@ -442,7 +444,7 @@ function ReviewIndicator({ state }: { state: "idle" | "reviewing" | "approved" |
   const map = {
     idle:      { color: C.textMute, dot: C.border,  label: "Ready" },
     reviewing: { color: C.warn,     dot: C.warn,    label: "Byuld is reviewing…" },
-    approved:  { color: C.mint,     dot: C.mint,    label: "Approved ✓" },
+    approved:  { color: C.mint,     dot: C.mint,    label: "Approved" },
     rejected:  { color: C.danger,   dot: C.danger,  label: "Keep going" },
   }[state];
   return (

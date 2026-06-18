@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { Pencil, X } from "lucide-react";
 import { C, F, R } from "../../tokens";
 import { useApp } from "../../context/AppContext";
 import { getDemo } from "../../lib/demo";
@@ -181,11 +182,11 @@ export default function EditorPanel({ onCodeChange, onAskLine, readOnlyCode, rea
         <span style={{ fontSize: "11px", color: C.textMute, fontFamily: F.mono, letterSpacing: "0.06em" }}>Escrow.sol</span>
         <div style={{ flex: 1 }} />
         {viewingReadOnly ? (
-          <button onClick={onCloseReadOnly} style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, background: "none", border: `1px solid ${C.border}`, borderRadius: R.full, padding: "2px 10px", cursor: "pointer" }}>
-            ✕ Viewing {headerLabel} — back to writing
+          <button onClick={onCloseReadOnly} style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", color: C.textMute, fontFamily: F.body, background: "none", border: `1px solid ${C.border}`, borderRadius: R.full, padding: "2px 10px", cursor: "pointer" }}>
+            <X size={11} /> Viewing {headerLabel} — back to writing
           </button>
         ) : headerLabel ? (
-          <span style={{ fontSize: "11px", color: C.purple, fontFamily: F.body, fontWeight: 600, padding: "2px 8px", background: `${C.purple}15`, borderRadius: R.full }}>✎ {headerLabel}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", color: C.purple, fontFamily: F.body, fontWeight: 600, padding: "2px 8px", background: `${C.purple}15`, borderRadius: R.full }}><Pencil size={11} /> {headerLabel}</span>
         ) : null}
       </div>
 

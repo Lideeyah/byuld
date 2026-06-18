@@ -10,6 +10,7 @@ import { getSections } from "../../lib/contracts";
 import type { Section, BuildPlan } from "../../types";
 import { getDemo } from "../../lib/demo";
 import { getContext } from "../../lib/learnContent";
+import { Check } from "lucide-react";
 
 const STEPS = ["You", "Wallet", "Chain", "Goal", "Review"];
 
@@ -183,7 +184,7 @@ export default function IntentReview() {
             <div style={{ fontSize: "11px", color: C.mint, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "10px" }}>Security checked before deploy</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
               {security.map(s => (
-                <span key={s} style={{ fontSize: "12px", color: C.textSec, fontFamily: F.body, padding: "4px 10px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.full }}>✓ {s}</span>
+                <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "12px", color: C.textSec, fontFamily: F.body, padding: "4px 10px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.full }}><Check size={12} color={C.mint} /> {s}</span>
               ))}
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Check, Pencil, Boxes, Plus, ExternalLink } from "lucide-react";
 import { C, F, R } from "../tokens";
 import Logo from "../components/layout/Logo";
 import Button from "../components/ui/Button";
@@ -104,12 +105,12 @@ export default function Dashboard() {
                 : "Your builds will show up here."}
             </p>
           </div>
-          <Button onClick={() => navigate("/onboarding/goal")}>+ New build</Button>
+          <Button onClick={() => navigate("/onboarding/goal")}><Plus size={15} style={{ marginRight: 6, verticalAlign: "-2px" }} />New build</Button>
         </div>
 
         {isEmpty ? (
           <div style={{ padding: "56px 24px", background: C.surface, border: `1px dashed ${C.border}`, borderRadius: R.lg, textAlign: "center" }}>
-            <div style={{ fontSize: "30px", marginBottom: "14px", opacity: 0.5 }}>◇</div>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "14px", opacity: 0.5 }}><Boxes size={30} color={C.textMute} /></div>
             <div style={{ fontSize: "16px", fontWeight: 600, color: C.white, fontFamily: F.body, marginBottom: "6px" }}>Nothing here yet</div>
             <div style={{ fontSize: "13px", color: C.textMute, fontFamily: F.body, marginBottom: "22px", maxWidth: "360px", margin: "0 auto 22px" }}>
               Build your first smart contract — you'll understand every line, and it'll live here once it's deployed.
@@ -126,7 +127,7 @@ export default function Dashboard() {
                   padding: "20px 22px", background: `${C.purple}0C`, border: `1px solid ${C.purple}44`,
                   borderRadius: R.lg, display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap",
                 }}>
-                  <div style={{ width: "44px", height: "44px", borderRadius: "12px", flexShrink: 0, background: `${C.purple}1E`, border: `1px solid ${C.purple}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", color: C.purple }}>✎</div>
+                  <div style={{ width: "44px", height: "44px", borderRadius: "12px", flexShrink: 0, background: `${C.purple}1E`, border: `1px solid ${C.purple}44`, display: "flex", alignItems: "center", justifyContent: "center", color: C.purple }}><Pencil size={19} /></div>
                   <div style={{ flex: 1, minWidth: "180px" }}>
                     <div style={{ fontSize: "15px", fontWeight: 600, color: C.white, fontFamily: F.body, marginBottom: "4px" }}>{inProgress.name}</div>
                     <div style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>
@@ -150,7 +151,7 @@ export default function Dashboard() {
                   {deployed.map(b => (
                     <div key={b.id} style={{ padding: "18px 20px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg, display: "flex", flexDirection: "column", gap: "14px" }}>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
-                        <div style={{ width: "38px", height: "38px", borderRadius: "10px", flexShrink: 0, background: `${C.mint}12`, border: `1px solid ${C.mint}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", color: C.mint }}>✓</div>
+                        <div style={{ width: "38px", height: "38px", borderRadius: "10px", flexShrink: 0, background: `${C.mint}12`, border: `1px solid ${C.mint}33`, display: "flex", alignItems: "center", justifyContent: "center", color: C.mint }}><Check size={18} /></div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: "15px", fontWeight: 600, color: C.white, fontFamily: F.body, marginBottom: "5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.name}</div>
                           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
@@ -171,8 +172,8 @@ export default function Dashboard() {
                         <span style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body }}>
                           {b.chain} · {new Date(b.deployedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                         </span>
-                        <a href={(EXPLORER[b.chain] || EXPLORER.sepolia) + b.contractAddress} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: C.purple, fontFamily: F.body, textDecoration: "none", fontWeight: 600 }}>
-                          Explorer ↗
+                        <a href={(EXPLORER[b.chain] || EXPLORER.sepolia) + b.contractAddress} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: C.purple, fontFamily: F.body, textDecoration: "none", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                          Explorer <ExternalLink size={12} />
                         </a>
                       </div>
                     </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { X, Check } from "lucide-react";
 import { C, F, R } from "../tokens";
 import Button from "./ui/Button";
 
@@ -71,8 +72,8 @@ export default function WaitlistModal({ onClose }: { onClose: () => void }) {
       >
         <button onClick={onClose} aria-label="Close" style={{
           position: "absolute", top: "14px", right: "16px", background: "none", border: "none",
-          color: C.textMute, fontSize: "20px", cursor: "pointer", lineHeight: 1,
-        }}>✕</button>
+          color: C.textMute, cursor: "pointer", lineHeight: 1, display: "flex",
+        }}><X size={18} /></button>
 
         {!done ? (
           <>
@@ -118,7 +119,7 @@ export default function WaitlistModal({ onClose }: { onClose: () => void }) {
           </>
         ) : (
           <div style={{ textAlign: "center", padding: "8px 4px" }}>
-            <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: `${C.mint}18`, border: `1px solid ${C.mint}44`, display: "flex", alignItems: "center", justifyContent: "center", margin: "4px auto 18px", fontSize: "26px", color: C.mint }}>✓</div>
+            <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: `${C.mint}18`, border: `1px solid ${C.mint}44`, display: "flex", alignItems: "center", justifyContent: "center", margin: "4px auto 18px", color: C.mint }}><Check size={26} /></div>
             <h2 style={{ fontSize: "22px", fontWeight: 700, fontFamily: F.display, color: C.white, marginBottom: "8px" }}>You're on the list!</h2>
             <p style={{ fontSize: "13px", color: C.textSec, fontFamily: F.body, lineHeight: 1.6, marginBottom: "20px" }}>
               Thanks{name ? `, ${name.split(" ")[0]}` : ""}. We saved your spot. Here's what you'll get:
@@ -126,7 +127,7 @@ export default function WaitlistModal({ onClose }: { onClose: () => void }) {
             <div style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
               {BENEFITS.map(b => (
                 <div key={b} style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                  <span style={{ color: C.mint, flexShrink: 0 }}>✓</span>
+                  <Check size={15} color={C.mint} style={{ flexShrink: 0, marginTop: "2px" }} />
                   <span style={{ fontSize: "13px", color: C.textSec, fontFamily: F.body, lineHeight: 1.4 }}>{b}</span>
                 </div>
               ))}

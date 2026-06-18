@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { C, F, R } from "../../tokens";
 import { useApp } from "../../context/AppContext";
 
@@ -55,7 +56,7 @@ export default function BuildSidebar({ onSectionClick }: { onSectionClick?: (idx
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
                 {isDone
-                  ? <span style={{ fontSize: "10px", color: C.bg }}>✓</span>
+                  ? <Check size={11} color={C.bg} />
                   : <span style={{ fontSize: "9px", fontWeight: 700, color: isActive ? "#fff" : C.textMute, fontFamily: F.display }}>{i + 1}</span>
                 }
               </div>

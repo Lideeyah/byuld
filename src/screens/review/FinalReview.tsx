@@ -9,6 +9,7 @@ import { useApp } from "../../context/AppContext";
 import { getDemo } from "../../lib/demo";
 import { assembleContract } from "../../lib/assemble";
 import FlowProgress from "../../components/ui/FlowProgress";
+import { ShieldCheck, ShieldAlert, AlertTriangle, Check, CheckCircle2 } from "lucide-react";
 import type { SecurityIssue } from "../../types";
 import Logo from "../../components/layout/Logo";
 
@@ -130,8 +131,8 @@ export default function FinalReview() {
         {phase !== "done" && (
           <div style={{ textAlign: "center", marginBottom: "48px" }}>
             <div style={{ marginBottom: "24px" }}>
-              <div style={{ width: "56px", height: "56px", borderRadius: "16px", background: `${C.purple}18`, border: `1px solid ${C.purple}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: "28px" }}>
-                🔒
+              <div style={{ width: "56px", height: "56px", borderRadius: "16px", background: `${C.purple}18`, border: `1px solid ${C.purple}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", color: C.purple }}>
+                <ShieldCheck size={28} />
               </div>
               <h2 style={{ fontSize: "22px", fontWeight: 700, fontFamily: F.display, color: C.white, marginBottom: "8px" }}>
                 Your contract is written. Well done.
@@ -146,7 +147,7 @@ export default function FinalReview() {
               ].map((step, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.md }}>
                   {step.done
-                    ? <span style={{ color: C.mint, fontSize: "14px" }}>✓</span>
+                    ? <Check size={14} color={C.mint} />
                     : step.active
                     ? <Spinner size={14} />
                     : <div style={{ width: "14px", height: "14px", borderRadius: "50%", border: `2px solid ${C.border}` }} />
@@ -170,7 +171,7 @@ export default function FinalReview() {
               borderRadius: R.lg,
               display: "flex", alignItems: "center", gap: "16px",
             }}>
-              <span style={{ fontSize: "28px" }}>{criticals.length > 0 ? "🔴" : warnings.length > 0 ? "🟡" : "🟢"}</span>
+              <span style={{ display: "flex", flexShrink: 0 }}>{criticals.length > 0 ? <ShieldAlert size={26} color={C.danger} /> : warnings.length > 0 ? <AlertTriangle size={26} color={C.warn} /> : <ShieldCheck size={26} color={C.mint} />}</span>
               <div>
                 <div style={{ fontSize: "15px", fontWeight: 700, color: C.white, fontFamily: F.body, marginBottom: "3px" }}>
                   {criticals.length > 0
@@ -210,7 +211,7 @@ export default function FinalReview() {
                         </button>
                       )}
                       {localAck.has(issue.id) && (
-                        <div style={{ marginTop: "8px", fontSize: "11px", color: C.mint }}>✓ Acknowledged</div>
+                        <div style={{ marginTop: "8px", fontSize: "11px", color: C.mint, display: "flex", alignItems: "center", gap: "4px" }}><Check size={12} /> Acknowledged</div>
                       )}
                     </div>
                   }
@@ -221,7 +222,7 @@ export default function FinalReview() {
             {/* No issues */}
             {issues.length === 0 && (
               <div style={{ textAlign: "center", padding: "20px" }}>
-                <div style={{ fontSize: "48px", marginBottom: "12px" }}>✓</div>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: "12px" }}><CheckCircle2 size={44} color={C.mint} /></div>
                 <div style={{ fontSize: "16px", fontWeight: 600, color: C.mint, fontFamily: F.body }}>Contract is clean. Ready for deployment.</div>
               </div>
             )}

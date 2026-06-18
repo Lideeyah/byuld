@@ -11,15 +11,30 @@ function isValidEmail(e: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); 
 export default function SignUp() {
   const navigate = useNavigate();
   const { dispatch } = useApp();
-  const { authenticated } = usePrivy();
+  const { authenticated, ready } = usePrivy();
   const { sendCode } = useLoginWithEmail();
   const { connectWallet } = useConnectWallet({
     onSuccess({ wallet }) {
       dispatch({ type: "SET_AUTHENTICATED", walletAddress: wallet.address });
       navigate("/onboarding/persona");
     },
-    onError() { setError("Something went wrong. Please try again."); },
+    onError(err) {
+      const code = String(err ?? "");
+      // User just closed the wallet prompt — not an error worth showing.
+      if (code.includes("exited") || code.includes("cancel") || code.includes("reject")) { setError(""); return; }
+      setError("Couldn't connect your wallet. Make sure MetaMask (or another wallet) is installed and unlocked, then try again.");
+    },
   });
+
+  const connectMetaMask = () => {
+    setError("");
+    if (!ready) { setError("Still getting ready — try again in a second."); return; }
+    if (typeof window !== "undefined" && !(window as any).ethereum) {
+      setError("No wallet detected. Install MetaMask, or just use the email option above.");
+      return;
+    }
+    try { connectWallet(); } catch { setError("Couldn't open your wallet. Is MetaMask installed and unlocked?"); }
+  };
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -110,7 +125,7 @@ export default function SignUp() {
 
         {/* MetaMask */}
         <button
-          onClick={() => { setError(""); connectWallet(); }}
+          onClick={connectMetaMask}
           style={{
             width: "100%", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: "8px",
             padding: "14px", color: C.textSec, fontFamily: F.body, fontSize: "15px", fontWeight: 600,

@@ -4,6 +4,7 @@ import MonacoEditor from "@monaco-editor/react";
 import { C, F, R } from "../tokens";
 import Logo from "../components/layout/Logo";
 import FlowProgress from "../components/ui/FlowProgress";
+import { Check, BookOpen } from "lucide-react";
 import Button from "../components/ui/Button";
 import Spinner from "../components/ui/Spinner";
 import { useApp } from "../context/AppContext";
@@ -30,7 +31,7 @@ function StepHeader({ n, total, done, title }: { n: number; total: number; done:
         background: done ? C.mint : `${C.purple}22`, border: `1px solid ${done ? C.mint : C.purple}`,
         display: "flex", alignItems: "center", justifyContent: "center",
         fontSize: "13px", fontWeight: 700, fontFamily: F.display, color: done ? C.bg : C.purple,
-      }}>{done ? "✓" : n}</div>
+      }}>{done ? <Check size={15} /> : n}</div>
       <div>
         <div style={{ fontSize: "10px", color: C.textMute, fontFamily: F.body, letterSpacing: "0.08em", textTransform: "uppercase" }}>Part {n} of {total}</div>
         <div style={{ fontSize: "17px", fontWeight: 700, fontFamily: F.display, color: C.white }}>{title}</div>
@@ -44,9 +45,10 @@ function Feedback({ kind, lines }: { kind: "pass" | "fail"; lines: string[] }) {
   return (
     <div style={{ marginTop: "12px", padding: "12px 16px", background: `${color}10`, border: `1px solid ${color}44`, borderRadius: R.md }}>
       {lines.map((l, i) => (
-        <p key={i} style={{ fontSize: "13px", color, fontFamily: F.body, lineHeight: 1.6, margin: i ? "6px 0 0" : 0 }}>
-          {kind === "pass" ? "✓ " : "• "}{l}
-        </p>
+        <div key={i} style={{ display: "flex", gap: "6px", alignItems: "flex-start", marginTop: i ? "6px" : 0 }}>
+          {kind === "pass" ? <Check size={14} color={color} style={{ flexShrink: 0, marginTop: "2px" }} /> : <span style={{ color, flexShrink: 0 }}>•</span>}
+          <span style={{ fontSize: "13px", color, fontFamily: F.body, lineHeight: 1.6 }}>{l}</span>
+        </div>
       ))}
     </div>
   );
@@ -199,7 +201,7 @@ export default function Comprehension() {
             display: "flex", alignItems: "center", justifyContent: "space-between",
             borderBottomLeftRadius: showRecap ? 0 : R.lg, borderBottomRightRadius: showRecap ? 0 : R.lg,
           }}>
-            <span>📖 Not sure? Refresh what your contract does (no answers given)</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}><BookOpen size={15} /> Not sure? Refresh what your contract does (no answers given)</span>
             <span style={{ transform: showRecap ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
           </button>
           {showRecap && (

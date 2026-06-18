@@ -371,7 +371,7 @@ export default function Admin() {
 
           {/* Padded with placeholder rows to show the table is live */}
           <div style={{ marginTop: "16px", padding: "12px 16px", background: C.surface2, borderRadius: R.md, fontSize: "12px", color: C.textMute, fontFamily: F.body }}>
-            📡 Live: tracked server-side across all users. Records persist per server instance — connect a database for durability across redeploys.
+            Live: tracked server-side across all users. Set DATABASE_URL on the server for storage that survives redeploys.
           </div>
         </div>
       </div>

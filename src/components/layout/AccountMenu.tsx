@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePrivy } from "@privy-io/react-auth";
+import { LayoutDashboard, Plus, Code2, LogOut } from "lucide-react";
 import { C, F, R } from "../../tokens";
 import { useApp } from "../../context/AppContext";
 
@@ -71,20 +72,20 @@ export default function AccountMenu() {
           <button style={item} onClick={() => go("/dashboard")}
             onMouseEnter={e => (e.currentTarget.style.background = C.surface2)}
             onMouseLeave={e => (e.currentTarget.style.background = "none")}>
-            <span style={{ width: "16px", textAlign: "center" }}>◈</span> My dashboard
+            <LayoutDashboard size={15} /> My dashboard
           </button>
 
           <button style={item} onClick={() => go("/onboarding/goal")}
             onMouseEnter={e => (e.currentTarget.style.background = C.surface2)}
             onMouseLeave={e => (e.currentTarget.style.background = "none")}>
-            <span style={{ width: "16px", textAlign: "center" }}>＋</span> New build
+            <Plus size={15} /> New build
           </button>
 
           {state.contractAddress && (
             <button style={item} onClick={() => go("/build")}
               onMouseEnter={e => (e.currentTarget.style.background = C.surface2)}
               onMouseLeave={e => (e.currentTarget.style.background = "none")}>
-              <span style={{ width: "16px", textAlign: "center" }}>⌘</span> Back to editor
+              <Code2 size={15} /> Back to editor
             </button>
           )}
 
@@ -93,7 +94,7 @@ export default function AccountMenu() {
           <button style={{ ...item, color: C.danger }} onClick={handleLogout}
             onMouseEnter={e => (e.currentTarget.style.background = `${C.danger}14`)}
             onMouseLeave={e => (e.currentTarget.style.background = "none")}>
-            <span style={{ width: "16px", textAlign: "center" }}>⏻</span> Log out
+            <LogOut size={15} /> Log out
           </button>
         </div>
       )}

@@ -4,6 +4,7 @@ import { C, F, R } from "../tokens";
 import Logo from "../components/layout/Logo";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
+import { Check } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { getDemo } from "../lib/demo";
 
@@ -48,12 +49,12 @@ export default function Success() {
         <div style={{ textAlign: "center", marginBottom: "40px" }}>
           <Logo size="lg" />
           <div style={{
-            display: "inline-block", padding: "6px 18px", marginTop: "24px",
+            display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 18px", marginTop: "24px",
             background: `${C.mint}15`, border: `1px solid ${C.mint}44`,
             borderRadius: R.full, fontSize: "12px", color: C.mint, fontFamily: F.body, fontWeight: 700,
             letterSpacing: "0.06em", textTransform: "uppercase",
           }}>
-            ✓ Contract deployed
+            <Check size={13} /> Contract deployed
           </div>
           <h1 style={{
             fontSize: "clamp(36px, 6vw, 56px)", fontWeight: 800, fontFamily: F.display,
@@ -90,7 +91,7 @@ export default function Success() {
                 transition: "all 0.15s",
               }}
             >
-              {copied ? "✓ Copied" : "Copy"}
+              {copied ? "Copied" : "Copy"}
             </button>
           </div>
         </div>

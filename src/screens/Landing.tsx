@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../tokens";
+import { Sparkles, ShieldCheck, Code2 } from "lucide-react";
 import Logo from "../components/layout/Logo";
 import Button from "../components/ui/Button";
 import WaitlistModal from "../components/WaitlistModal";
@@ -23,9 +24,9 @@ const DEMO_LINES = [
 ];
 
 const FEATURES = [
-  { icon: "◈", title: "Three-mode AI guidance", body: "Scaffold → Write → Explain. Byuld never just gives you the answer." },
-  { icon: "⬡", title: "Security by default", body: "Slither + AI review runs before every deployment. Critical issues are a hard stop." },
-  { icon: "◉", title: "You own the code", body: "Every line is yours. Byuld explains what you wrote, not what it wrote for you." },
+  { Icon: Sparkles,    title: "Three-mode AI guidance", body: "Scaffold → Write → Explain. Byuld never just gives you the answer." },
+  { Icon: ShieldCheck, title: "Security by default", body: "Slither + AI review runs before every deployment. Critical issues are a hard stop." },
+  { Icon: Code2,       title: "You own the code", body: "Every line is yours. Byuld explains what you wrote, not what it wrote for you." },
 ];
 
 export default function Landing() {
@@ -205,7 +206,7 @@ export default function Landing() {
                 cursor: "default",
               }}
             >
-              <div style={{ fontSize: "28px", marginBottom: "16px", color: C.purple }}>{f.icon}</div>
+              <div style={{ marginBottom: "16px", color: C.purple }}><f.Icon size={26} /></div>
               <div style={{ fontSize: "16px", fontWeight: 700, fontFamily: F.display, color: C.white, marginBottom: "10px" }}>{f.title}</div>
               <div style={{ fontSize: "13px", color: C.textSec, fontFamily: F.body, lineHeight: 1.65 }}>{f.body}</div>
             </div>

@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { C, F } from "../../tokens";
 
 interface Props { steps: string[]; current: number; }
@@ -21,7 +22,7 @@ export default function ProgressStep({ steps, current }: Props) {
                 flexShrink: 0,
               }}>
                 {done
-                  ? <span style={{ fontSize: "12px", color: C.bg }}>✓</span>
+                  ? <Check size={14} color={C.bg} />
                   : <span style={{ fontSize: "11px", fontWeight: 700, color: active ? C.white : C.textMute, fontFamily: F.display }}>{i + 1}</span>
                 }
               </div>

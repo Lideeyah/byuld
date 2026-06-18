@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { Lightbulb, GraduationCap, Code2, Zap } from "lucide-react";
 import { C, F, R } from "../../tokens";
 import Logo from "../../components/layout/Logo";
 import Button from "../../components/ui/Button";
@@ -11,11 +12,11 @@ import { getDemo, DEMO_CONTENT, sleep } from "../../lib/demo";
 // Self-described experience level (P1). Each maps onto the existing two-tone
 // persona ("founder" plain-language vs "developer" technical) and also records the
 // finer level for adaptive explanations (P4) and admin analytics.
-const OPTIONS: { level: Exclude<ExperienceLevel, null>; persona: Persona; icon: string; title: string; desc: string }[] = [
-  { level: "founder",   persona: "founder",   icon: "◈", title: "Non-Technical Founder", desc: "I have a product idea but I'm not a developer. Byuld teaches you as you build — plain English, no jargon." },
-  { level: "student",   persona: "founder",   icon: "✎", title: "Student", desc: "I'm here to learn. Byuld explains the concepts as you go, with extra context where it helps." },
-  { level: "developer", persona: "developer", icon: "⌨", title: "Developer", desc: "I can code but I'm new to Web3. Map what I already know to blockchain patterns — less hand-holding." },
-  { level: "expert",    persona: "developer", icon: "⚡", title: "Experienced Web3 Builder", desc: "I know smart contracts. Keep explanations minimal and let me move fast." },
+const OPTIONS: { level: Exclude<ExperienceLevel, null>; persona: Persona; Icon: typeof Lightbulb; title: string; desc: string }[] = [
+  { level: "founder",   persona: "founder",   Icon: Lightbulb,     title: "Non-Technical Founder", desc: "I have a product idea but I'm not a developer. Byuld teaches you as you build — plain English, no jargon." },
+  { level: "student",   persona: "founder",   Icon: GraduationCap, title: "Student", desc: "I'm here to learn. Byuld explains the concepts as you go, with extra context where it helps." },
+  { level: "developer", persona: "developer", Icon: Code2,         title: "Developer", desc: "I can code but I'm new to Web3. Map what I already know to blockchain patterns — less hand-holding." },
+  { level: "expert",    persona: "developer", Icon: Zap,           title: "Experienced Web3 Builder", desc: "I know smart contracts. Keep explanations minimal and let me move fast." },
 ];
 
 const LANGUAGES = ["JavaScript", "TypeScript", "Python", "Java", "Rust", "Go", "Other"];
@@ -130,9 +131,9 @@ export default function PersonaSelection() {
                   background: isSelected ? `${C.purple}25` : C.surface2,
                   border: `1px solid ${isSelected ? C.purple + "55" : C.border}`,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "20px", color: isSelected ? C.purple : (isHov ? C.textSec : C.textMute), transition: "all 0.15s",
+                  color: isSelected ? C.purple : (isHov ? C.textSec : C.textMute), transition: "all 0.15s",
                 }}>
-                  {opt.icon}
+                  <opt.Icon size={20} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: "15px", fontWeight: 600, fontFamily: F.body, color: isSelected ? C.white : C.textSec, marginBottom: "3px", transition: "color 0.15s" }}>

@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { MessageSquarePlus, X, Check } from "lucide-react";
 import { C, F, R } from "../tokens";
 import Button from "./ui/Button";
 import { useApp } from "../context/AppContext";
 
 // P8 — always-available feedback. A small floating button that opens a lightweight
 // modal so users can report problems even if they never finish the flow.
-// Hidden on marketing/auth/admin/demo-start, and on /build (which has its own
-// bottom-right "Ask Byuld" chat the button would otherwise overlap).
-const HIDE_ON = ["/", "/auth", "/check-email", "/admin", "/demo", "/build"];
+// Hidden only on marketing/auth/admin/demo-start.
+const HIDE_ON = ["/", "/auth", "/check-email", "/admin", "/demo"];
 
 const textarea: React.CSSProperties = {
   width: "100%", padding: "10px 12px", background: C.surface2, border: `1px solid ${C.border}`,
@@ -35,6 +35,10 @@ export default function FeedbackWidget() {
 
   if (HIDE_ON.includes(location.pathname)) return null;
 
+  // On the build screen the bottom-right holds the "Ask Byuld" chat input, so float
+  // the button above it; elsewhere it sits in the bottom-right corner.
+  const bottom = location.pathname === "/build" ? "104px" : "20px";
+
   const close = () => { setOpen(false); setTimeout(() => { setDone(false); setIssue(""); setConfused(""); setImprove(""); }, 200); };
 
   const submit = async () => {
@@ -54,26 +58,26 @@ export default function FeedbackWidget() {
     <>
       {!open && (
         <button onClick={() => setOpen(true)} style={{
-          position: "fixed", bottom: "20px", right: "20px", zIndex: 9000,
+          position: "fixed", bottom, right: "20px", zIndex: 9000,
           padding: "9px 16px", background: C.surface, border: `1px solid ${C.border}`,
           borderRadius: R.full, color: C.textSec, fontFamily: F.body, fontSize: "13px", fontWeight: 600,
           cursor: "pointer", boxShadow: "0 6px 20px rgba(0,0,0,0.35)", display: "flex", alignItems: "center", gap: "7px",
         }}>
-          <span style={{ color: C.purple }}>✦</span> Feedback
+          <MessageSquarePlus size={15} color={C.purple} /> Feedback
         </button>
       )}
 
       {open && (
-        <div style={{ position: "fixed", bottom: "20px", right: "20px", zIndex: 9001, width: "320px", maxWidth: "calc(100vw - 40px)",
+        <div style={{ position: "fixed", bottom, right: "20px", zIndex: 9001, width: "320px", maxWidth: "calc(100vw - 40px)",
           background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg, boxShadow: "0 16px 44px rgba(0,0,0,0.5)", padding: "18px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
             <span style={{ fontSize: "14px", fontWeight: 700, color: C.white, fontFamily: F.display }}>Share feedback</span>
-            <button onClick={close} aria-label="Close" style={{ background: "none", border: "none", color: C.textMute, fontSize: "16px", cursor: "pointer" }}>✕</button>
+            <button onClick={close} aria-label="Close" style={{ background: "none", border: "none", color: C.textMute, cursor: "pointer", display: "flex" }}><X size={16} /></button>
           </div>
 
           {done ? (
             <div style={{ textAlign: "center", padding: "10px 4px 6px" }}>
-              <div style={{ color: C.mint, fontSize: "22px", marginBottom: "8px" }}>✓</div>
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}><Check size={26} color={C.mint} /></div>
               <p style={{ fontSize: "13px", color: C.textSec, fontFamily: F.body, marginBottom: "16px", lineHeight: 1.5 }}>Thanks — this goes straight to the team.</p>
               <Button fullWidth size="sm" onClick={close}>Done</Button>
             </div>

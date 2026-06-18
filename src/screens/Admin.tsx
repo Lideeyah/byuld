@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { C, F, R } from "../tokens";
 import Logo from "../components/layout/Logo";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 // The admin password is NOT stored in the client. The server validates it (against
 // the ADMIN_PASSWORD env var), so the secret never ships in the frontend bundle.
@@ -194,6 +195,7 @@ export default function Admin() {
   const [error, setError] = useState("");
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const isMobile = useIsMobile();
 
   const [checking, setChecking] = useState(false);
 
@@ -305,7 +307,7 @@ export default function Admin() {
       </div>
 
       {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "32px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: "16px", marginBottom: "32px" }}>
         <StatCard label="Total users" value={metrics.totalUsers} sub="All time" />
         <StatCard label="Completed onboarding" value={metrics.completedOnboarding} sub={`${metrics.totalUsers ? Math.round(metrics.completedOnboarding / metrics.totalUsers * 100) : 0}% conversion`} />
         <StatCard label="Active last 24h" value={metrics.activeLast24h} sub="Unique sessions" />
@@ -313,7 +315,7 @@ export default function Admin() {
       </div>
 
       {/* Chart + recent users */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "16px", marginBottom: "32px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 2fr", gap: "16px", marginBottom: "32px" }}>
         <div style={{ padding: "24px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg }}>
           {metrics.dailySignups.length > 0 ? (
             <BarChart data={metrics.dailySignups} label="Daily signups — last 7 days" />
@@ -377,7 +379,7 @@ export default function Admin() {
       </div>
 
       {/* Experience-level distribution + feedback summary */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "32px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", marginBottom: "32px" }}>
         <div style={{ padding: "24px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg }}>
           <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "16px" }}>Experience levels</div>
           {Object.keys(metrics.experienceDistribution).length === 0 ? (

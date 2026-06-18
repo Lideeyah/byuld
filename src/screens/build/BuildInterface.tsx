@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../../tokens";
 import BuildTopBar from "../../components/layout/BuildTopBar";
 import FlowProgress from "../../components/ui/FlowProgress";
-import { ClipboardList, MessageCircle, Check, AlertTriangle } from "lucide-react";
+import { ClipboardList, MessageCircle, Check, AlertTriangle, Code2 } from "lucide-react";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import BuildSidebar from "../../components/layout/BuildSidebar";
 import EditorPanel from "../../components/build/EditorPanel";
 import ChatPanel from "../../components/build/ChatPanel";
@@ -82,6 +83,11 @@ export default function BuildInterface() {
     try { return !localStorage.getItem("byuld_seen_howto"); } catch { return true; }
   });
   const [rightTab, setRightTab] = useState<"guide" | "ask">("guide");
+  // Mobile: the 3-column layout collapses into one panel at a time (Code / Task / Chat).
+  const isMobile = useIsMobile(860);
+  const [mTab, setMTab] = useState<"code" | "guide" | "ask">("code");
+  // When a line-help question fires (sets rightTab "ask"), surface the chat on mobile.
+  useEffect(() => { if (rightTab === "ask") setMTab("ask"); }, [rightTab]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -385,56 +391,76 @@ export default function BuildInterface() {
         </div>
       )}
 
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        <BuildSidebar onSectionClick={handleSectionClick} />
-
-        <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-          <EditorPanel
-            onCodeChange={handleCodeChange}
-            onAskLine={handleAskLine}
-            readOnlyCode={viewSection?.code ?? null}
-            readOnlyTitle={viewSection?.title ?? null}
-            onCloseReadOnly={() => setViewSection(null)}
-          />
-          <div style={{ height: "48px", background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 16px", gap: "14px", flexShrink: 0 }}>
-            <ReviewIndicator state={reviewState} />
-            <div style={{ flex: 1 }} />
-            <span style={{ fontSize: "11px", color: C.textMute, fontFamily: F.mono }}>
-              {state.sections.filter(s => s.status === "complete").length}/{state.sections.length} sections
-            </span>
-            {allComplete
-              ? <Button size="sm" variant="mint" onClick={() => navigate("/review")}>Security Review →</Button>
-              : <Button size="sm" onClick={handleCheck} disabled={aiLoading}>
-                  {aiLoading ? <><Spinner size={13} color="#fff" /> Checking…</> : <><Check size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Check my code</>}
-                </Button>
-            }
-          </div>
+      {/* Mobile tab bar — one panel at a time (the 3-column layout collapses here) */}
+      {isMobile && (
+        <div style={{ display: "flex", flexShrink: 0, borderBottom: `1px solid ${C.border}`, background: C.surface }}>
+          {([["code", "Code", Code2], ["guide", "Task", ClipboardList], ["ask", "Chat", MessageCircle]] as const).map(([id, label, Icon]) => (
+            <button key={id} onClick={() => { setMTab(id); if (id !== "code") setRightTab(id); }} style={{
+              flex: 1, padding: "12px 8px", background: "none", border: "none", cursor: "pointer",
+              borderBottom: `2px solid ${mTab === id ? C.purple : "transparent"}`,
+              color: mTab === id ? C.white : C.textMute,
+              fontFamily: F.body, fontSize: "12px", fontWeight: 600,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+            }}><Icon size={14} /> {label}</button>
+          ))}
         </div>
+      )}
 
-        {/* Right panel — tabbed: one focus at a time, full-height & readable */}
-        <div style={{ flex: "0 0 440px", display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden", borderLeft: `1px solid ${C.border}`, background: C.surface }}>
-          <div style={{ display: "flex", flexShrink: 0, borderBottom: `1px solid ${C.border}` }}>
-            {([["guide", "Your task", ClipboardList], ["ask", "Ask Byuld", MessageCircle]] as const).map(([id, label, Icon]) => (
-              <button key={id} onClick={() => setRightTab(id)} style={{
-                flex: 1, padding: "14px 12px", background: "none", border: "none", cursor: "pointer",
-                borderBottom: `2px solid ${rightTab === id ? C.purple : "transparent"}`,
-                color: rightTab === id ? C.white : C.textMute,
-                fontFamily: F.body, fontSize: "13px", fontWeight: 600, transition: "all 0.15s",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: "7px",
-              }}><Icon size={15} /> {label}</button>
-            ))}
-          </div>
+      <div style={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden" }}>
+        {!isMobile && <BuildSidebar onSectionClick={handleSectionClick} />}
 
-          <div style={{ flex: 1, minHeight: 0, display: rightTab === "guide" ? "flex" : "none", flexDirection: "column" }}>
-            {sections[currentIdx] && !allComplete
-              ? <TaskGuide section={sections[currentIdx]} index={currentIdx} total={sections.length} persona={persona} languages={state.programmingLanguages} />
-              : <div style={{ padding: "32px 20px", textAlign: "center", color: C.textMute, fontFamily: F.body, fontSize: "14px" }}>All sections done — run the security review.</div>}
+        {(!isMobile || mTab === "code") && (
+          <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
+            <EditorPanel
+              onCodeChange={handleCodeChange}
+              onAskLine={handleAskLine}
+              readOnlyCode={viewSection?.code ?? null}
+              readOnlyTitle={viewSection?.title ?? null}
+              onCloseReadOnly={() => setViewSection(null)}
+            />
+            <div style={{ minHeight: "48px", background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "8px 16px", gap: "12px", flexShrink: 0, flexWrap: "wrap" }}>
+              <ReviewIndicator state={reviewState} />
+              <div style={{ flex: 1 }} />
+              <span style={{ fontSize: "11px", color: C.textMute, fontFamily: F.mono }}>
+                {state.sections.filter(s => s.status === "complete").length}/{state.sections.length} sections
+              </span>
+              {allComplete
+                ? <Button size="sm" variant="mint" onClick={() => navigate("/review")}>Security Review →</Button>
+                : <Button size="sm" onClick={handleCheck} disabled={aiLoading}>
+                    {aiLoading ? <><Spinner size={13} color="#fff" /> Checking…</> : <><Check size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Check my code</>}
+                  </Button>
+              }
+            </div>
           </div>
+        )}
 
-          <div style={{ flex: 1, minHeight: 0, display: rightTab === "ask" ? "flex" : "none", flexDirection: "column" }}>
-            <ChatPanel onSend={handleUserMessage} loading={aiLoading} />
+        {(!isMobile || mTab !== "code") && (
+          <div style={{ flex: isMobile ? "1 1 auto" : "0 0 440px", display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden", borderLeft: isMobile ? "none" : `1px solid ${C.border}`, background: C.surface }}>
+            {!isMobile && (
+              <div style={{ display: "flex", flexShrink: 0, borderBottom: `1px solid ${C.border}` }}>
+                {([["guide", "Your task", ClipboardList], ["ask", "Ask Byuld", MessageCircle]] as const).map(([id, label, Icon]) => (
+                  <button key={id} onClick={() => setRightTab(id)} style={{
+                    flex: 1, padding: "14px 12px", background: "none", border: "none", cursor: "pointer",
+                    borderBottom: `2px solid ${rightTab === id ? C.purple : "transparent"}`,
+                    color: rightTab === id ? C.white : C.textMute,
+                    fontFamily: F.body, fontSize: "13px", fontWeight: 600, transition: "all 0.15s",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: "7px",
+                  }}><Icon size={15} /> {label}</button>
+                ))}
+              </div>
+            )}
+
+            <div style={{ flex: 1, minHeight: 0, display: (isMobile ? mTab === "guide" : rightTab === "guide") ? "flex" : "none", flexDirection: "column" }}>
+              {sections[currentIdx] && !allComplete
+                ? <TaskGuide section={sections[currentIdx]} index={currentIdx} total={sections.length} persona={persona} languages={state.programmingLanguages} />
+                : <div style={{ padding: "32px 20px", textAlign: "center", color: C.textMute, fontFamily: F.body, fontSize: "14px" }}>All sections done — run the security review.</div>}
+            </div>
+
+            <div style={{ flex: 1, minHeight: 0, display: (isMobile ? mTab === "ask" : rightTab === "ask") ? "flex" : "none", flexDirection: "column" }}>
+              <ChatPanel onSend={handleUserMessage} loading={aiLoading} />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -29,6 +29,8 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string }
   }
 }
 
+// Privy's client app ID. MUST be set to the real value in the Vercel project env
+// (VITE_PRIVY_APP_ID) — a missing/placeholder value disables sign-in entirely.
 const privyAppId = (import.meta.env.VITE_PRIVY_APP_ID ?? "").trim();
 
 // The self-running demo runs as ONE continuous in-app session that begins at /demo

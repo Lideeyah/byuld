@@ -13,10 +13,13 @@ export default function CheckEmail() {
   const { state, dispatch } = useApp();
   const { loginWithCode, sendCode } = useLoginWithEmail({
     async onComplete(args) {
-      // Returning user (known to the server) → straight to their dashboard.
-      // New user → onboarding. This is account-tied, so it works on any device.
-      const email = state.email || (args as { user?: { email?: { address?: string } } })?.user?.email?.address || "";
-      const dest = await resolveAuthDestination(email, state.persona);
+      // Returning user → straight to their dashboard. New user → onboarding.
+      // Privy's `isNewUser === false` means this account has signed in before, so
+      // even without a server record we skip onboarding. Works on any device.
+      const a = args as { isNewUser?: boolean; user?: { email?: { address?: string } } };
+      const email = state.email || a?.user?.email?.address || "";
+      const priorAccount = a?.isNewUser === false;
+      const dest = await resolveAuthDestination(email, state.persona, priorAccount);
       if (dest.persona) {
         dispatch({ type: "SET_PERSONA", persona: dest.persona as Persona });
         if (dest.experienceLevel) dispatch({ type: "SET_EXPERIENCE", level: dest.experienceLevel as ExperienceLevel });

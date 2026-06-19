@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { C, F, R } from "../tokens";
 import Logo from "../components/layout/Logo";
 import { useIsMobile } from "../hooks/useIsMobile";
+import { apiUrl } from "../lib/api";
+import LearningAnalytics, { type Learning, type FeedbackAnalytics, type WindowKey } from "./admin/LearningAnalytics";
 
 // The admin password is NOT stored in the client. The server validates it (against
 // the ADMIN_PASSWORD env var), so the secret never ships in the frontend bundle.
@@ -57,6 +59,8 @@ interface Metrics {
   feedbackCount: number;
   feedbackStats: { avgRating: number; avgUnderstanding: number; wouldUseAgain: Record<string, number>; mostValuable: Record<string, number> };
   feedback: FeedbackEntry[];
+  learning: Learning | null;
+  feedbackAnalytics: FeedbackAnalytics | null;
 }
 
 // ─── Read metrics from the backend (real, cross-user) ─────────────────────────
@@ -82,7 +86,7 @@ function localSessionUser(): UserRecord | null {
   } catch { return null; }
 }
 
-async function fetchMetrics(password: string): Promise<Metrics> {
+async function fetchMetrics(password: string, window: WindowKey): Promise<Metrics> {
   const now = Date.now();
   const oneDayMs = 86_400_000;
   let users: UserRecord[] = [];
@@ -93,11 +97,13 @@ async function fetchMetrics(password: string): Promise<Metrics> {
     feedbackCount: 0,
     feedbackStats: { avgRating: 0, avgUnderstanding: 0, wouldUseAgain: {} as Record<string, number>, mostValuable: {} as Record<string, number> },
     feedback: [] as FeedbackEntry[],
+    learning: null as Learning | null,
+    feedbackAnalytics: null as FeedbackAnalytics | null,
   };
   try {
-    const res = await fetch("/api/admin/metrics", {
+    const res = await fetch(apiUrl("/api/admin/metrics"), {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, window }),
     });
     if (res.ok) {
       const data = await res.json();
@@ -107,6 +113,8 @@ async function fetchMetrics(password: string): Promise<Metrics> {
       extra.feedbackCount = data.feedbackCount ?? 0;
       extra.feedbackStats = data.feedbackStats ?? extra.feedbackStats;
       extra.feedback = data.feedback ?? [];
+      extra.learning = data.learning ?? null;
+      extra.feedbackAnalytics = data.feedbackAnalytics ?? null;
       users = (data.recentUsers ?? []).map((u: any) => ({
         email: u.email ?? "—",
         persona: u.persona ?? null,
@@ -195,6 +203,7 @@ export default function Admin() {
   const [error, setError] = useState("");
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [window, setWindow] = useState<WindowKey>("72h");
   const isMobile = useIsMobile();
 
   const [checking, setChecking] = useState(false);
@@ -204,7 +213,7 @@ export default function Admin() {
     if (checking) return;
     setChecking(true); setError("");
     try {
-      const res = await fetch("/api/admin/metrics", {
+      const res = await fetch(apiUrl("/api/admin/metrics"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: password.trim() }),
       });
@@ -216,12 +225,12 @@ export default function Admin() {
   };
 
   const refresh = useCallback(async () => {
-    const m = await fetchMetrics(password);
+    const m = await fetchMetrics(password, window);
     setMetrics(m);
     setLastRefresh(new Date());
-  }, [password]);
+  }, [password, window]);
 
-  // Auto-refresh every 60 seconds
+  // Auto-refresh every 60 seconds (and immediately when the window changes).
   useEffect(() => {
     if (!authed) return;
     refresh();
@@ -305,6 +314,20 @@ export default function Admin() {
           </div>
         </div>
       </div>
+
+      {/* Learning Analytics — the most important section (understanding, not vanity). */}
+      {metrics.learning && metrics.feedbackAnalytics && (
+        <LearningAnalytics
+          learning={metrics.learning}
+          feedback={metrics.feedbackAnalytics}
+          windowKey={window}
+          onWindow={setWindow}
+          isMobile={isMobile}
+        />
+      )}
+
+      <div style={{ height: "1px", background: C.border, margin: "0 0 28px" }} />
+      <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "16px" }}>Overview &amp; raw records</div>
 
       {/* Stat cards */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: "16px", marginBottom: "32px" }}>

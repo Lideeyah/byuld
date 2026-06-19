@@ -10,6 +10,7 @@ import AccountMenu from "../components/layout/AccountMenu";
 import { useApp } from "../context/AppContext";
 import { getDemo, setDemo, clearDemo } from "../lib/demo";
 import { getDeployedBuilds, type BuildRecord } from "../lib/builds";
+import { useScreenTime } from "../lib/analytics";
 
 const EXPLORER: Record<string, string> = {
   "base-sepolia": "https://sepolia.basescan.org/address/",
@@ -33,6 +34,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { state, dispatch } = useApp();
   const [copied, setCopied] = useState("");
+  useScreenTime("dashboard");
 
   const firstName = state.email.split("@")[0] || "there";
 

@@ -4,6 +4,7 @@ import { MessageSquarePlus, X, Check } from "lucide-react";
 import { C, F, R } from "../tokens";
 import Button from "./ui/Button";
 import { useApp } from "../context/AppContext";
+import { apiUrl } from "../lib/api";
 
 // P8 — always-available feedback. A small floating button that opens a lightweight
 // modal so users can report problems even if they never finish the flow.
@@ -45,7 +46,7 @@ export default function FeedbackWidget() {
     if (submitting || (!issue.trim() && !confused.trim() && !improve.trim())) return;
     setSubmitting(true);
     try {
-      await fetch("/api/feedback", {
+      await fetch(apiUrl("/api/feedback"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: "quick", email: state.email, experienceLevel: state.experienceLevel, contractType: state.contractType, issue, confused, improve }),
       });

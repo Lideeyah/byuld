@@ -7,6 +7,8 @@ import Spinner from "../../components/ui/Spinner";
 import { useApp } from "../../context/AppContext";
 import ProgressStep from "../../components/ui/ProgressStep";
 import { getSections } from "../../lib/contracts";
+import { apiUrl } from "../../lib/api";
+import { useScreenTime, trackStage } from "../../lib/analytics";
 import type { Section, BuildPlan } from "../../types";
 import { getDemo } from "../../lib/demo";
 import { getContext } from "../../lib/learnContent";
@@ -50,6 +52,9 @@ export default function IntentReview() {
   const [line, setLine] = useState(0);
   const started = useRef(false);
 
+  // Time spent understanding the plan before building (a key learning signal).
+  useScreenTime("review", { stage: "review_reached" });
+
   // Generate the tailored build for real users (the demo always uses escrow).
   useEffect(() => {
     if (demo || state.buildPlan || started.current) return;
@@ -58,7 +63,7 @@ export default function IntentReview() {
     const tick = setInterval(() => setLine(l => (l + 1) % LOADING_LINES.length), 9000);
     (async () => {
       try {
-        const res = await fetch("/api/generate-build-plan", {
+        const res = await fetch(apiUrl("/api/generate-build-plan"), {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ goal: state.goal, persona: state.persona ?? "founder", programmingLanguages: state.programmingLanguages }),
         });
@@ -79,6 +84,7 @@ export default function IntentReview() {
   }, []);
 
   const startBuilding = () => {
+    trackStage("build_started", { project: plan?.contractType || state.contractType || "escrow" });
     // Generated builds already have their sections set by SET_BUILD_PLAN.
     if (demo || !plan) {
       const sections: Section[] = getSections().map((def, i) => ({

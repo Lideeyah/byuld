@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { X, Check } from "lucide-react";
 import { C, F, R } from "../tokens";
 import Button from "./ui/Button";
+import { apiUrl } from "../lib/api";
 
 const ROLES = ["Founder", "Developer", "Student", "Designer", "Other"];
 
@@ -40,7 +41,7 @@ export default function WaitlistModal({ onClose }: { onClose: () => void }) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { setError("Please enter a valid email."); return; }
     setSubmitting(true); setError("");
     try {
-      const res = await fetch("/api/waitlist", {
+      const res = await fetch(apiUrl("/api/waitlist"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, role, challenge }),
       });

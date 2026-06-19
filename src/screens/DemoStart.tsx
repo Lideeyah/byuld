@@ -4,6 +4,7 @@ import { C, F } from "../tokens";
 import Logo from "../components/layout/Logo";
 import { setDemo } from "../lib/demo";
 import { useApp } from "../context/AppContext";
+import { apiUrl } from "../lib/api";
 
 // Entry point for the self-running demo. Resets to a clean authed session and
 // starts the founder run; the per-screen autopilots take it from here.
@@ -17,7 +18,7 @@ export default function DemoStart() {
     // very start of the demo gives it time to be warm before the first AI review and,
     // crucially, before the real on-chain deploy — so the deploy is fast (~18s) instead
     // of cold (~60s, which both looks stuck and can exceed the proxy timeout).
-    fetch("/api/health").catch(() => {});
+    fetch(apiUrl("/api/health")).catch(() => {});
     // Drive AppContext directly — never go through a reload, so a stale prior
     // session in localStorage can't clobber the seed (that was the old bug).
     dispatch({ type: "RESET_SESSION", persona: null });

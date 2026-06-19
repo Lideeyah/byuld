@@ -49,6 +49,12 @@ let pool = DB_URL ? new pg.Pool({
 let USERS = [];
 let WAITLIST = [];
 let FEEDBACK = [];
+// Append-only learning-analytics event log. Each entry is a single user action
+// (screen time, question asked, concept viewed, funnel stage reached, …) tagged
+// with a sessionId, so we can reconstruct journeys and measure understanding —
+// not just signups. Capped to keep the JSON blob bounded.
+let EVENTS = [];
+const EVENTS_CAP = 50_000;
 
 const fileFor = (key) => resolve(DATA_DIR, `${key}.json`);
 const loadFile = (key) => { try { return JSON.parse(readFileSync(fileFor(key), "utf8")); } catch { return []; } };
@@ -69,6 +75,13 @@ const persist = (key, val) => { if (pool) dbSave(key, val); else saveFile(key, v
 function saveUsers() { persist("users", USERS); }
 function saveWaitlist() { persist("waitlist", WAITLIST); }
 function saveFeedback() { persist("feedback", FEEDBACK); }
+// Events arrive in bursts (screen changes, questions). Debounce persistence so we
+// don't write the whole log on every single event.
+let eventsSaveTimer = null;
+function saveEvents() {
+  if (eventsSaveTimer) return;
+  eventsSaveTimer = setTimeout(() => { eventsSaveTimer = null; persist("events", EVENTS); }, 2500);
+}
 
 // Load all datasets on boot (awaited before the server starts listening).
 async function initStore() {
@@ -78,14 +91,15 @@ async function initStore() {
       USERS = (await dbLoad("users")) || [];
       WAITLIST = (await dbLoad("waitlist")) || [];
       FEEDBACK = (await dbLoad("feedback")) || [];
-      console.log(`[Byuld store] Postgres connected — users:${USERS.length} waitlist:${WAITLIST.length} feedback:${FEEDBACK.length}`);
+      EVENTS = (await dbLoad("events")) || [];
+      console.log(`[Byuld store] Postgres connected — users:${USERS.length} waitlist:${WAITLIST.length} feedback:${FEEDBACK.length} events:${EVENTS.length}`);
       return;
     } catch (e) {
       console.error("[Byuld store] DB init failed, falling back to files:", e.message);
       pool = null;
     }
   }
-  USERS = loadFile("users"); WAITLIST = loadFile("waitlist"); FEEDBACK = loadFile("feedback");
+  USERS = loadFile("users"); WAITLIST = loadFile("waitlist"); FEEDBACK = loadFile("feedback"); EVENTS = loadFile("events");
   console.log("[Byuld store] file-backed (set DATABASE_URL for storage that survives redeploys)");
 }
 
@@ -114,6 +128,52 @@ function trackUser(ev) {
     USERS[i] = { ...prev, ...ev, stage, signedUpAt: prev.signedUpAt || now, lastSeen: now };
   }
   saveUsers();
+}
+
+// Funnel stages we recognise (used to compute drop-off). Order matters.
+const FUNNEL = [
+  { key: "visited",            label: "Users" },
+  { key: "onboarding_complete",label: "Completed Onboarding" },
+  { key: "review_reached",     label: "Reached Review" },
+  { key: "build_started",      label: "Started Build" },
+  { key: "ide_entered",        label: "Entered IDE" },
+  { key: "audit_viewed",       label: "Viewed Audit" },
+  { key: "session_complete",   label: "Completed Session" },
+  { key: "returned",           label: "Returned User" },
+  { key: "second_build",       label: "Started Second Build" },
+];
+const KNOWN_EVENTS = new Set([
+  "session_start", "screen_time", "question", "concept_view", "explanation_view",
+  "audit_view", "interaction", "stage",
+]);
+
+// Append a single learning-analytics event. Lightweight + defensive: bad/oversized
+// payloads are dropped rather than throwing. lastSeen on the user is refreshed so
+// active-user counts stay accurate even without a /api/track ping.
+function recordEvent(ev) {
+  if (!ev || typeof ev !== "object") return;
+  const type = String(ev.type || "").slice(0, 40);
+  if (!type) return;
+  const entry = {
+    ts: Number(ev.ts) || Date.now(),
+    email: ev.email ? String(ev.email).slice(0, 200) : null,
+    sessionId: ev.sessionId ? String(ev.sessionId).slice(0, 64) : null,
+    type,
+    screen: ev.screen ? String(ev.screen).slice(0, 40) : null,
+    stage: ev.stage ? String(ev.stage).slice(0, 40) : null,
+    durationMs: Number.isFinite(ev.durationMs) ? Math.max(0, Math.min(ev.durationMs, 6 * 3600_000)) : 0,
+    concept: ev.concept ? String(ev.concept).slice(0, 80) : null,
+    project: ev.project ? String(ev.project).slice(0, 60) : null,
+    role: ev.role ? String(ev.role).slice(0, 40) : null,
+  };
+  EVENTS.push(entry);
+  if (EVENTS.length > EVENTS_CAP) EVENTS = EVENTS.slice(-EVENTS_CAP);
+  saveEvents();
+  // Keep the per-user record's lastSeen fresh (best-effort; only if we know who).
+  if (entry.email) {
+    const i = USERS.findIndex((u) => u.email === entry.email);
+    if (i >= 0) { USERS[i].lastSeen = entry.ts; saveUsers(); }
+  }
 }
 
 function getStripe() {
@@ -689,6 +749,17 @@ app.post("/api/track", (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── POST /api/event ───────────────────────────────────────────────────────────
+// Learning-analytics event ingest. Accepts a single event or a batch (sent via
+// fetch or navigator.sendBeacon on page unload). Fire-and-forget — always 200s
+// quickly so it never blocks the UI.
+app.post("/api/event", (req, res) => {
+  const body = req.body || {};
+  const events = Array.isArray(body.events) ? body.events : [body];
+  for (const ev of events.slice(0, 50)) recordEvent(ev);
+  res.json({ ok: true });
+});
+
 // ─── POST /api/feedback ────────────────────────────────────────────────────────
 // Post-flow survey (kind="flow") and always-available quick feedback (kind="quick").
 app.post("/api/feedback", (req, res) => {
@@ -732,12 +803,216 @@ app.post("/api/waitlist", (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── Learning analytics engine ─────────────────────────────────────────────────
+// Reconstructs sessions and journeys from the event log to measure understanding
+// and engagement — not just signups. All time-based metrics come from real
+// recorded screen_time / question / concept events; nothing is fabricated.
+
+const WINDOWS = { "72h": 3 * 86_400_000, "7d": 7 * 86_400_000, "30d": 30 * 86_400_000, all: Infinity };
+
+const identityOf = (e) => e.email || e.sessionId || "anon";
+const SCREEN_LABEL = {
+  onboarding: "Onboarding", goal: "Goal", review: "Review", primer: "Primer",
+  ide: "IDE", audit: "Audit", deploy: "Deploy", success: "Success", dashboard: "Dashboard",
+};
+
+// Group all events into sessions (keyed by sessionId), each with derived rollups.
+function buildSessions(events) {
+  const map = new Map();
+  for (const e of events) {
+    const sid = e.sessionId || `na:${e.email || "anon"}:${Math.floor((e.ts || 0) / 1800000)}`;
+    let s = map.get(sid);
+    if (!s) { s = { sessionId: sid, email: e.email || null, start: e.ts, end: e.ts, screens: new Set(), stages: new Set(), questions: 0, concepts: 0, explanations: 0, audits: 0, timeByScreen: {}, project: null }; map.set(sid, s); }
+    s.start = Math.min(s.start, e.ts); s.end = Math.max(s.end, e.ts);
+    if (e.email && !s.email) s.email = e.email;
+    if (e.project && !s.project) s.project = e.project;
+    if (e.screen) s.screens.add(e.screen);
+    if (e.type === "stage" && e.stage) s.stages.add(e.stage);
+    if (e.type === "question") s.questions++;
+    if (e.type === "concept_view") s.concepts++;
+    if (e.type === "explanation_view") s.explanations++;
+    if (e.type === "audit_view") s.audits++;
+    if (e.type === "screen_time" && e.screen) s.timeByScreen[e.screen] = (s.timeByScreen[e.screen] || 0) + (e.durationMs || 0);
+  }
+  for (const s of map.values()) {
+    const screenSum = Object.values(s.timeByScreen).reduce((a, b) => a + b, 0);
+    s.durationMs = screenSum > 0 ? screenSum : Math.max(0, s.end - s.start);
+  }
+  return [...map.values()];
+}
+
+function computeLearning(windowKey) {
+  const now = Date.now();
+  const since = now - (WINDOWS[windowKey] ?? Infinity);
+  const evs = EVENTS.filter((e) => (e.ts || 0) >= since);
+
+  const sum = (a) => a.reduce((x, y) => x + y, 0);
+  const avg = (a) => (a.length ? sum(a) / a.length : 0);
+  const r1 = (n) => Math.round(n * 10) / 10;
+  const min = (ms) => r1(ms / 60000);
+
+  const sessions = buildSessions(evs);
+  const allSessions = buildSessions(EVENTS); // all-time, for return analytics
+
+  // ── Stage reach (per identity) for the funnel ──
+  const reached = Object.fromEntries(FUNNEL.map((f) => [f.key, new Set()]));
+  const has = (s, key) => s.stages.has(key);
+  for (const s of sessions) {
+    const id = s.email || s.sessionId;
+    reached.visited.add(id);
+    if (has(s, "onboarding_complete")) reached.onboarding_complete.add(id);
+    if (has(s, "review_reached") || s.screens.has("review")) reached.review_reached.add(id);
+    if (has(s, "build_started")) reached.build_started.add(id);
+    if (has(s, "ide_entered") || s.screens.has("ide")) reached.ide_entered.add(id);
+    if (has(s, "audit_viewed") || s.audits > 0 || s.screens.has("audit")) reached.audit_viewed.add(id);
+    if (has(s, "session_complete") || s.screens.has("success")) reached.session_complete.add(id);
+  }
+  // Returned / second build are inherently multi-session → compute all-time per email.
+  const byEmail = new Map();
+  for (const s of allSessions) {
+    if (!s.email) continue;
+    let g = byEmail.get(s.email);
+    if (!g) { g = { sessions: [], builds: 0 }; byEmail.set(s.email, g); }
+    g.sessions.push(s);
+    if (s.stages.has("build_started") || s.screens.has("ide")) g.builds++;
+  }
+  for (const [email, g] of byEmail) {
+    if (g.sessions.length > 1) reached.returned.add(email);
+    if (g.builds > 1) reached.second_build.add(email);
+  }
+
+  // Blend in users recorded BEFORE event tracking existed. They have no events,
+  // but their stored stage still places them in the funnel — so the people who
+  // already used Byuld are represented (the richer time/question metrics simply
+  // start from real events onward). Scoped to the window by last-seen / signup.
+  for (const u of USERS) {
+    if (!u.email) continue;
+    const ts = u.lastSeen || u.signedUpAt || 0;
+    if (ts < since) continue;
+    const id = u.email;
+    reached.visited.add(id);
+    if (u.persona) reached.onboarding_complete.add(id);
+    const rank = STAGE_RANK[u.stage] ?? -1;
+    if (rank >= 2 || u.contractAddress) { // building or further
+      reached.review_reached.add(id);
+      reached.build_started.add(id);
+      reached.ide_entered.add(id);
+    }
+    if (rank >= 3 || u.contractAddress) { // deployed
+      reached.audit_viewed.add(id);
+      reached.session_complete.add(id);
+    }
+  }
+
+  const funnel = FUNNEL.map((f, i) => {
+    const count = reached[f.key].size;
+    const prev = i === 0 ? count : reached[FUNNEL[i - 1].key].size;
+    return { key: f.key, label: f.label, count, dropoffPct: prev ? r1(((prev - count) / prev) * 100) : 0 };
+  });
+
+  // ── Learning metrics ──
+  const sWith = (k) => sessions.filter((s) => (s.timeByScreen[k] || 0) > 0).map((s) => s.timeByScreen[k]);
+  const durations = sessions.map((s) => s.durationMs);
+  const engagement = (s) => min(s.durationMs) + s.questions * 2 + s.concepts + s.explanations;
+  const byEmailWindow = new Map();
+  for (const s of sessions) {
+    const id = s.email || s.sessionId;
+    byEmailWindow.set(id, (byEmailWindow.get(id) || 0) + engagement(s));
+  }
+  let mostEngaged = null;
+  for (const [id, score] of byEmailWindow) if (!mostEngaged || score > mostEngaged.score) mostEngaged = { id, score: r1(score) };
+  const longest = sessions.reduce((m, s) => (!m || s.durationMs > m.durationMs ? s : m), null);
+  const identityMaxDur = new Map();
+  for (const s of sessions) { const id = s.email || s.sessionId; identityMaxDur.set(id, Math.max(identityMaxDur.get(id) || 0, s.durationMs)); }
+  const activeOver = (m) => [...identityMaxDur.values()].filter((d) => d > m * 60000).length;
+
+  const learningMetrics = {
+    avgSessionDuration: min(avg(durations)),
+    avgIdeTime: min(avg(sWith("ide"))),
+    avgReviewTime: min(avg(sWith("review"))),
+    avgAuditTime: min(avg(sWith("audit"))),
+    avgQuestions: r1(avg(sessions.map((s) => s.questions))),
+    avgConcepts: r1(avg(sessions.map((s) => s.concepts))),
+    avgExplanations: r1(avg(sessions.map((s) => s.explanations))),
+    avgScreens: r1(avg(sessions.map((s) => s.screens.size))),
+    longestSession: longest ? { min: min(longest.durationMs), who: longest.email || "anonymous" } : null,
+    mostEngagedUser: mostEngaged ? { who: mostEngaged.id, score: mostEngaged.score } : null,
+    activeOver10: activeOver(10),
+    activeOver20: activeOver(20),
+    activeOver30: activeOver(30),
+  };
+
+  // ── Project analytics ── one count per build: from event sessions AND from the
+  // existing user records (so projects built before event tracking still count).
+  const projectTally = {};
+  for (const s of sessions) if (s.project) projectTally[s.project] = (projectTally[s.project] || 0) + 1;
+  for (const u of USERS) {
+    const ts = u.lastSeen || u.signedUpAt || 0;
+    if (u.contractType && ts >= since) projectTally[u.contractType] = (projectTally[u.contractType] || 0) + 1;
+  }
+  const projects = Object.entries(projectTally).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+
+  // ── Concept analytics ──
+  const conceptMap = new Map();
+  for (const e of evs) if (e.type === "concept_view" && e.concept) {
+    let c = conceptMap.get(e.concept);
+    if (!c) { c = { concept: e.concept, views: 0, users: new Set(), time: 0 }; conceptMap.set(e.concept, c); }
+    c.views++; c.users.add(identityOf(e)); c.time += e.durationMs || 0;
+  }
+  const concepts = [...conceptMap.values()].map((c) => ({ concept: c.concept, views: c.views, uniqueUsers: c.users.size, avgTimeSec: c.views ? Math.round(c.time / c.views / 1000) : 0 })).sort((a, b) => b.views - a.views);
+
+  // ── User overview ── active = anyone with an event OR a recorded last-seen in the window.
+  const activeIds = new Set(evs.map(identityOf));
+  for (const u of USERS) if (u.email && (u.lastSeen || u.signedUpAt || 0) >= since) activeIds.add(u.email);
+  const newUsers = USERS.filter((u) => (u.signedUpAt || 0) >= since).length;
+  const userOverview = {
+    totalUsers: USERS.length,
+    activeUsers: activeIds.size,
+    newUsers,
+    returningUsers: reached.returned.size,
+  };
+
+  // ── Return analytics (all-time) ──
+  const gaps = [];
+  let multi = 0;
+  for (const [, g] of byEmail) {
+    const starts = g.sessions.map((s) => s.start).sort((a, b) => a - b);
+    if (starts.length > 1) { multi++; for (let i = 1; i < starts.length; i++) gaps.push(starts[i] - starts[i - 1]); }
+  }
+  const returnAnalytics = {
+    returnRatePct: byEmail.size ? r1((multi / byEmail.size) * 100) : 0,
+    avgSessionsPerUser: byEmail.size ? r1(avg([...byEmail.values()].map((g) => g.sessions.length))) : 0,
+    avgProjectsPerUser: byEmail.size ? r1(avg([...byEmail.values()].map((g) => g.builds))) : 0,
+    avgHoursBetweenSessions: gaps.length ? r1(avg(gaps) / 3600000) : 0,
+  };
+
+  // ── Activity feed (most recent events, humanised) ──
+  const labelFor = (e) => {
+    switch (e.type) {
+      case "session_start": return "Started a session";
+      case "screen_time": return `Spent ${min(e.durationMs)}m on ${SCREEN_LABEL[e.screen] || e.screen || "a screen"}`;
+      case "question": return "Asked a question";
+      case "concept_view": return `Viewed concept: ${e.concept || "—"}`;
+      case "explanation_view": return "Viewed an explanation";
+      case "audit_view": return "Viewed the security audit";
+      case "stage": return (FUNNEL.find((f) => f.key === e.stage)?.label) || `Reached: ${e.stage}`;
+      default: return e.type;
+    }
+  };
+  const activityFeed = evs
+    .slice(-400).reverse()
+    .map((e) => ({ ts: e.ts, who: e.email || (e.sessionId ? `anon·${String(e.sessionId).slice(0, 6)}` : "anonymous"), label: labelFor(e), type: e.type, screen: e.screen }));
+
+  return { windowKey, since, userOverview, funnel, learningMetrics, projects, concepts, returnAnalytics, activityFeed, sessionsCount: sessions.length };
+}
+
 // ─── POST /api/admin/metrics ───────────────────────────────────────────────────
 // Password-gated. Returns real users/deploys/waitlist for the admin dashboard.
 app.post("/api/admin/metrics", (req, res) => {
   if (String(req.body?.password || "").trim() !== ADMIN_PASSWORD) return res.status(401).json({ error: "Unauthorized" });
   const now = Date.now();
   const oneDay = 86_400_000;
+  const windowKey = WINDOWS[req.body?.window] !== undefined ? req.body.window : "7d";
   const users = [...USERS].sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
   const waitlist = [...WAITLIST].sort((a, b) => (b.at || 0) - (a.at || 0));
   const feedback = [...FEEDBACK].sort((a, b) => (b.at || 0) - (a.at || 0));
@@ -746,6 +1021,21 @@ app.post("/api/admin/metrics", (req, res) => {
   const tally = (items, key) => items.reduce((m, x) => { const k = x[key]; if (k) m[k] = (m[k] || 0) + 1; return m; }, {});
   const flow = feedback.filter((f) => f.kind === "flow");
   const avg = (arr) => arr.length ? Math.round((arr.reduce((s, n) => s + n, 0) / arr.length) * 10) / 10 : 0;
+
+  // Feedback analytics (windowed), with free-text improvement requests + challenges surfaced.
+  const since = now - (WINDOWS[windowKey] ?? Infinity);
+  const fWin = feedback.filter((f) => (f.at || 0) >= since);
+  const flowWin = fWin.filter((f) => f.kind === "flow");
+  const textBits = (key) => fWin.map((f) => (f[key] || "").trim()).filter(Boolean).slice(0, 50);
+  const feedbackAnalytics = {
+    total: fWin.length,
+    avgUnderstanding: avg(flowWin.map((f) => f.understanding).filter(Boolean)),
+    avgRating: avg(flowWin.map((f) => f.rating).filter(Boolean)),
+    wouldUseAgain: tally(flowWin, "wouldUseAgain"),
+    mostValuable: tally(flowWin, "mostValuable"),
+    improvementRequests: [...textBits("improve"), ...textBits("missing")],
+    challenges: [...textBits("confused"), ...textBits("issue")],
+  };
 
   res.json({
     totalUsers: users.length,
@@ -762,9 +1052,43 @@ app.post("/api/admin/metrics", (req, res) => {
       wouldUseAgain: tally(flow, "wouldUseAgain"),
       mostValuable: tally(flow, "mostValuable"),
     },
+    // Learning analytics — the important part. Windowed by ?window=72h|7d|30d|all.
+    learning: computeLearning(windowKey),
+    feedbackAnalytics,
     recentUsers: users.slice(0, 100),
     waitlist: waitlist.slice(0, 200),
     feedback: feedback.slice(0, 200),
+  });
+});
+
+// ─── POST /api/admin/export ────────────────────────────────────────────────────
+// Password-gated. A reusable, bucketed snapshot of everything we have — designed
+// to answer "show me the last 72h / 7d". Returns the learning analytics computed
+// for each window plus the raw counts, so it can be pasted/inspected anywhere.
+app.post("/api/admin/export", (req, res) => {
+  if (String(req.body?.password || "").trim() !== ADMIN_PASSWORD) return res.status(401).json({ error: "Unauthorized" });
+  const now = Date.now();
+  const bucket = (sinceMs) => {
+    const since = now - sinceMs;
+    return {
+      newUsers: USERS.filter((u) => (u.signedUpAt || 0) >= since).length,
+      activeUsers: new Set(EVENTS.filter((e) => (e.ts || 0) >= since).map(identityOf)).size,
+      events: EVENTS.filter((e) => (e.ts || 0) >= since).length,
+      feedback: FEEDBACK.filter((f) => (f.at || 0) >= since).length,
+      waitlist: WAITLIST.filter((w) => (w.at || 0) >= since).length,
+      deployments: USERS.filter((u) => (u.deployedAt || 0) >= since).length,
+    };
+  };
+  res.json({
+    generatedAt: new Date(now).toISOString(),
+    totals: { users: USERS.length, events: EVENTS.length, feedback: FEEDBACK.length, waitlist: WAITLIST.length },
+    instrumentationStart: EVENTS.length ? new Date(Math.min(...EVENTS.map((e) => e.ts || now))).toISOString() : null,
+    windows: {
+      last72h: { ...bucket(WINDOWS["72h"]), learning: computeLearning("72h") },
+      last7d: { ...bucket(WINDOWS["7d"]), learning: computeLearning("7d") },
+      last30d: { ...bucket(WINDOWS["30d"]), learning: computeLearning("30d") },
+      allTime: { learning: computeLearning("all") },
+    },
   });
 });
 

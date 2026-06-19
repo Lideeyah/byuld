@@ -8,6 +8,8 @@ import Spinner from "../../components/ui/Spinner";
 import { useApp } from "../../context/AppContext";
 import { getDemo } from "../../lib/demo";
 import { assembleContract } from "../../lib/assemble";
+import { apiUrl } from "../../lib/api";
+import { useScreenTime, trackAudit } from "../../lib/analytics";
 import FlowProgress from "../../components/ui/FlowProgress";
 import { ShieldCheck, ShieldAlert, AlertTriangle, Check, CheckCircle2 } from "lucide-react";
 import type { SecurityIssue } from "../../types";
@@ -47,6 +49,10 @@ export default function FinalReview() {
   const [phase, setPhase] = useState<ReviewPhase>("scanning-slither");
   const [issues, setIssues] = useState<SecurityIssue[]>([]);
 
+  // Time spent reviewing the security audit (a core understanding signal).
+  useScreenTime("audit", { stage: "audit_viewed" });
+  useEffect(() => { trackAudit(); }, []);
+
   useEffect(() => {
     const run = async () => {
       const assembled = assembleContract(state.sections, state.buildPlan);
@@ -59,7 +65,7 @@ export default function FinalReview() {
       // Phase 2 — real Claude contextual review
       let aiIssues: SecurityIssue[] = [];
       try {
-        const res = await fetch("/api/security-review", {
+        const res = await fetch(apiUrl("/api/security-review"), {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fullCode: assembled, goal: state.goal, persona: state.persona ?? "founder" }),
         });

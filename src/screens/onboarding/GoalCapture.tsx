@@ -8,6 +8,8 @@ import { useApp } from "../../context/AppContext";
 import ProgressStep from "../../components/ui/ProgressStep";
 import Spinner from "../../components/ui/Spinner";
 import { getDemo, DEMO_CONTENT, sleep } from "../../lib/demo";
+import { apiUrl } from "../../lib/api";
+import { trackStage } from "../../lib/analytics";
 
 const STEPS = ["You", "Wallet", "Chain", "Goal", "Review"];
 
@@ -50,7 +52,7 @@ export default function GoalCapture() {
       sessionStorage.removeItem("byuld_intent");
       dispatch({ type: "SET_GOAL", goal: g, contractType: "escrow", projectName: "Escrow Contract" });
       // Upgrade to the friendly AI name (e.g. "Marketplace Payment Escrow") when it lands.
-      fetch("/api/classify-goal", {
+      fetch(apiUrl("/api/classify-goal"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal: g, persona: demo.persona }),
       }).then(r => r.ok ? r.json() : null).then(d => {
@@ -71,11 +73,12 @@ export default function GoalCapture() {
     // Set a sensible name now, navigate instantly, and personalise in the background.
     // Generic placeholder; IntentReview generates the real tailored name (plan.projectName).
     sessionStorage.removeItem("byuld_intent");
+    trackStage("onboarding_complete", { project: "escrow" });
     dispatch({ type: "SET_GOAL", goal: g, contractType: "escrow", projectName: "New Build" });
     navigate("/onboarding/review");
 
     // Fire-and-forget: cache a description for the review screen's escrow fallback.
-    fetch("/api/classify-goal", {
+    fetch(apiUrl("/api/classify-goal"), {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ goal: g, persona: state.persona ?? "founder" }),
     })

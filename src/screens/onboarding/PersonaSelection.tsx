@@ -8,6 +8,8 @@ import { useApp } from "../../context/AppContext";
 import type { Persona, ExperienceLevel } from "../../types";
 import ProgressStep from "../../components/ui/ProgressStep";
 import { getDemo, DEMO_CONTENT, sleep } from "../../lib/demo";
+import { apiUrl } from "../../lib/api";
+import { useScreenTime } from "../../lib/analytics";
 
 // Self-described experience level (P1). Each maps onto the existing two-tone
 // persona ("founder" plain-language vs "developer" technical) and also records the
@@ -29,6 +31,7 @@ export default function PersonaSelection() {
   const { state, dispatch } = useApp();
   const [selected, setSelected] = useState<ExperienceLevel>(null);
   const [hov, setHov] = useState<ExperienceLevel>(null);
+  useScreenTime("onboarding");
   const [langs, setLangs] = useState<string[]>([]);
 
   const persona = personaOf(selected);
@@ -45,7 +48,7 @@ export default function PersonaSelection() {
     if (p === "developer" && languages.length) dispatch({ type: "SET_LANGUAGES", languages });
     // Record the onboarding role for analytics (best-effort).
     if (state.email) {
-      fetch("/api/track", {
+      fetch(apiUrl("/api/track"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: state.email, persona: p, experienceLevel: level, stage: "onboarding" }),
       }).catch(() => {});

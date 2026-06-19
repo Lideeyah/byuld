@@ -5,6 +5,8 @@ import BuildTopBar from "../../components/layout/BuildTopBar";
 import FlowProgress from "../../components/ui/FlowProgress";
 import { ClipboardList, MessageCircle, Check, AlertTriangle, Code2 } from "lucide-react";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { apiUrl } from "../../lib/api";
+import { useScreenTime, trackQuestion, trackExplanation, trackConcept } from "../../lib/analytics";
 import BuildSidebar from "../../components/layout/BuildSidebar";
 import EditorPanel from "../../components/build/EditorPanel";
 import ChatPanel from "../../components/build/ChatPanel";
@@ -22,7 +24,7 @@ async function api<T>(endpoint: string, body: object): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 90_000);
   try {
-    const res = await fetch(endpoint, {
+    const res = await fetch(apiUrl(endpoint), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -88,6 +90,8 @@ export default function BuildInterface() {
   const [mTab, setMTab] = useState<"code" | "guide" | "ask">("code");
   // When a line-help question fires (sets rightTab "ask"), surface the chat on mobile.
   useEffect(() => { if (rightTab === "ask") setMTab("ask"); }, [rightTab]);
+  // Learning analytics: time in the IDE is one of our most important signals.
+  useScreenTime("ide", { stage: "ide_entered" });
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -126,6 +130,8 @@ export default function BuildInterface() {
     }
     dispatch({ type: "SET_MODE", mode: "C" });
     setReviewState("idle");
+    // Each section teaches one concept — record the view for concept analytics.
+    if (def.title) trackConcept(def.title);
   }, [sections, state.sections, dispatch]);
 
   // ── Init on mount — load the scaffold silently, no chat, no API ──────────────
@@ -134,10 +140,10 @@ export default function BuildInterface() {
     if (!state.goal) { navigate("/onboarding/goal"); return; }
     initialized.current = true;
     // Proactively wake the API (Render free tier sleeps) so the first check is instant.
-    fetch("/api/health").catch(() => {});
+    fetch(apiUrl("/api/health")).catch(() => {});
     // Record this user reaching the build, for the admin dashboard.
     if (state.email) {
-      fetch("/api/track", {
+      fetch(apiUrl("/api/track"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: state.email, persona: state.persona, experienceLevel: state.experienceLevel, contractType: state.contractType, chain: state.chain, tokensUsed: state.tokensUsed, stage: "building" }),
       }).catch(() => {});
@@ -264,6 +270,8 @@ export default function BuildInterface() {
   // with the exact line as context. Only fires when the user taps a chip / submits.
   const handleAskLine = useCallback(async (question: string, line: string, lineNumber: number) => {
     const def = sections[currentIdx];
+    trackQuestion({ screen: "ide" });            // a question…
+    trackExplanation({ screen: "ide", concept: def?.title });  // …answered with a line explanation
     setRightTab("ask");                 // surface the chat so they see the answer
     addMsg("user", question);
     setAiLoading(true);
@@ -282,6 +290,7 @@ export default function BuildInterface() {
 
   // ── Chat ─────────────────────────────────────────────────────────────────────
   const handleUserMessage = useCallback(async (text: string) => {
+    trackQuestion({ screen: "ide" });
     addMsg("user", text);
     const def = sections[currentIdx];
     setAiLoading(true);

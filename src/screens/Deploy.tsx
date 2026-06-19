@@ -8,6 +8,7 @@ import { useApp } from "../context/AppContext";
 import { getDemo } from "../lib/demo";
 import { assembleContract } from "../lib/assemble";
 import { recordDeploy } from "../lib/builds";
+import { apiUrl } from "../lib/api";
 import FlowProgress from "../components/ui/FlowProgress";
 
 type Step = "summary" | "deploying" | "error";
@@ -41,7 +42,7 @@ export default function Deploy() {
     const t2 = setTimeout(() => setStage(2), 13000);
     const clearStageTimers = () => { clearTimeout(t1); clearTimeout(t2); };
     try {
-      const res = await fetch("/api/deploy", {
+      const res = await fetch(apiUrl("/api/deploy"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source: assembled }),
@@ -76,7 +77,7 @@ export default function Deploy() {
         deployedAt: Date.now(),
       });
       if (state.email) {
-        fetch("/api/notify-deploy", {
+        fetch(apiUrl("/api/notify-deploy"), {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: state.email, contractAddress: data.contractAddress, chain: "sepolia", contractType: state.buildPlan?.contractType || state.contractType || "escrow", txHash: data.txHash }),
         }).catch(() => {});

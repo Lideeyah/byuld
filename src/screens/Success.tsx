@@ -7,6 +7,7 @@ import Badge from "../components/ui/Badge";
 import { Check } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { getDemo } from "../lib/demo";
+import { useScreenTime, trackStage } from "../lib/analytics";
 
 const CHAIN_EXPLORER: Record<string, string> = {
   base:         "https://basescan.org/address/",
@@ -20,6 +21,10 @@ export default function Success() {
   const navigate = useNavigate();
   const { state } = useApp();
   const [copied, setCopied] = useState(false);
+
+  // Reaching success = a completed learning session.
+  useScreenTime("success");
+  useEffect(() => { trackStage("session_complete"); }, []);
 
   const explorerUrl = CHAIN_EXPLORER[state.chain] + state.contractAddress;
   const date = new Date(state.deployedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });

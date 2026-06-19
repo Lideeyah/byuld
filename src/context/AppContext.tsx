@@ -1,4 +1,5 @@
 import { createContext, useContext, useReducer, useEffect, ReactNode } from "react";
+import { setAnalyticsUser, trackSessionStart } from "../lib/analytics";
 import type { AppState, AppAction, Persona, Chain, BuildMode, Message, Section, SecurityIssue } from "../types";
 import { getSections } from "../lib/contracts";
 
@@ -118,7 +119,21 @@ function reducer(state: AppState, action: AppAction): AppState {
     case "SET_LANGUAGES":
       return { ...state, programmingLanguages: action.languages };
     case "SET_GOAL":
-      return { ...state, goal: action.goal, contractType: action.contractType, projectName: action.projectName ?? state.projectName };
+      // A new goal starts a brand-new build. Clear the previous AI plan, written
+      // code, and deploy artifacts so the review screen regenerates from scratch —
+      // otherwise a new build would silently replay the last build's plan.
+      return {
+        ...state,
+        goal: action.goal,
+        contractType: action.contractType,
+        projectName: action.projectName ?? "",
+        buildPlan: null,
+        sections: freshSections(),
+        currentSection: 0,
+        messages: [],
+        securityIssues: [],
+        contractAddress: "", txHash: "", deployedAt: 0,
+      };
     case "SET_SECTIONS":
       return { ...state, sections: action.sections, currentSection: 0 };
     case "SET_CHAIN":
@@ -178,6 +193,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [state.isAuthenticated, state.persona, state.goal, state.contractType, state.chain,
       state.tokensUsed, state.email, state.walletAddress, state.contractAddress, state.txHash, state.deployedAt,
       state.sections, state.currentSection, state.messages]);
+
+  // Keep learning-analytics events attributed to the right user, and mark the
+  // start of each browser session once we have an identity.
+  useEffect(() => {
+    setAnalyticsUser(state.email || null);
+    if (state.email) {
+      try {
+        if (!sessionStorage.getItem("byuld_sess_started")) {
+          sessionStorage.setItem("byuld_sess_started", "1");
+          trackSessionStart();
+        }
+      } catch { /* ignore */ }
+    }
+  }, [state.email]);
 
   return <Ctx.Provider value={{ state, dispatch }}>{children}</Ctx.Provider>;
 }

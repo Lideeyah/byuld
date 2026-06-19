@@ -7,6 +7,7 @@ import { Star, Check } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { getDemo } from "../lib/demo";
 import WaitlistModal from "../components/WaitlistModal";
+import { apiUrl } from "../lib/api";
 
 const MOST_VALUABLE = ["Explanations", "Learning Concepts", "Understanding Decisions", "Verification", "Other"];
 
@@ -63,7 +64,7 @@ export default function FeedbackSurvey() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      await fetch("/api/feedback", {
+      await fetch(apiUrl("/api/feedback"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           kind: "flow", email: state.email, experienceLevel: state.experienceLevel, contractType: state.contractType,

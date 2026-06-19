@@ -5,14 +5,23 @@ import { C, F, R } from "../../tokens";
 import Logo from "../../components/layout/Logo";
 import Button from "../../components/ui/Button";
 import { useApp } from "../../context/AppContext";
+import { resolveAuthDestination } from "../../lib/auth";
+import type { Persona, ExperienceLevel } from "../../types";
 
 export default function CheckEmail() {
   const navigate = useNavigate();
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const { loginWithCode, sendCode } = useLoginWithEmail({
-    onComplete() {
-      // Returning user → dashboard. New user → onboarding.
-      navigate(state.persona ? "/dashboard" : "/onboarding/persona");
+    async onComplete(args) {
+      // Returning user (known to the server) → straight to their dashboard.
+      // New user → onboarding. This is account-tied, so it works on any device.
+      const email = state.email || (args as { user?: { email?: { address?: string } } })?.user?.email?.address || "";
+      const dest = await resolveAuthDestination(email, state.persona);
+      if (dest.persona) {
+        dispatch({ type: "SET_PERSONA", persona: dest.persona as Persona });
+        if (dest.experienceLevel) dispatch({ type: "SET_EXPERIENCE", level: dest.experienceLevel as ExperienceLevel });
+      }
+      navigate(dest.path, { replace: true });
     },
     onError(err) {
       setError(typeof err === "string" ? err : "Invalid code. Please try again.");

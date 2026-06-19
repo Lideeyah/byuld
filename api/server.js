@@ -760,6 +760,18 @@ app.post("/api/event", (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── POST /api/user-status ─────────────────────────────────────────────────────
+// After sign-in the client asks: has this email used Byuld before? If so, they've
+// onboarded → send them straight to the dashboard instead of repeating onboarding.
+// This is the account-tied source of truth (localStorage is per-device and empty
+// for a returning user on a new browser). Returns minimal, non-sensitive info.
+app.post("/api/user-status", (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  if (!email) return res.json({ returning: false, persona: null, experienceLevel: null });
+  const u = USERS.find((x) => String(x.email || "").toLowerCase() === email);
+  res.json({ returning: !!u, persona: u?.persona ?? null, experienceLevel: u?.experienceLevel ?? null });
+});
+
 // ─── POST /api/feedback ────────────────────────────────────────────────────────
 // Post-flow survey (kind="flow") and always-available quick feedback (kind="quick").
 app.post("/api/feedback", (req, res) => {

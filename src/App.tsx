@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useApp } from "./context/AppContext";
+import { resolveAuthDestination } from "./lib/auth";
+import type { Persona, ExperienceLevel } from "./types";
 
 import Landing          from "./screens/Landing";
 import SignUp           from "./screens/auth/SignUp";
@@ -50,10 +52,19 @@ function PrivyAuthSync() {
       dispatch({ type: "SET_EMAIL", email: emailAccount.address });
     }
 
-    // Only redirect from auth screens — don't redirect if already in the app
+    // Only redirect from auth screens — don't redirect if already in the app.
+    // Ask the server whether this email has onboarded before so returning users
+    // (whose localStorage is empty on a fresh device) skip onboarding.
     const onAuthScreen = ["/auth", "/check-email"].includes(location.pathname);
     if (onAuthScreen) {
-      navigate(state.persona ? "/dashboard" : "/onboarding/persona", { replace: true });
+      const email = emailAccount?.address || state.email || "";
+      resolveAuthDestination(email, state.persona).then((dest) => {
+        if (dest.persona) {
+          dispatch({ type: "SET_PERSONA", persona: dest.persona as Persona });
+          if (dest.experienceLevel) dispatch({ type: "SET_EXPERIENCE", level: dest.experienceLevel as ExperienceLevel });
+        }
+        navigate(dest.path, { replace: true });
+      });
     }
   }, [ready, authenticated, wallets, user]);
 

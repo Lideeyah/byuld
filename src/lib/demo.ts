@@ -27,22 +27,37 @@ export const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 export const DEMO_CONTENT: Record<DemoPersona, {
   languages: string[];
   goal: string;
-  // a line-help question + a free chat question shown on section 1
+  // a line-help question + a free chat question shown on section 1, with the
+  // scripted answers the demo shows (no live AI — deterministic for recording)
   lineQuestion: string;
+  lineAnswer: string;
   chatQuestion: string;
+  chatAnswer: string;
 }> = {
   founder: {
     languages: [],
     goal: "A safe way to hold a buyer's payment until the seller delivers the item, with a neutral referee for disputes",
     lineQuestion: "What does this do?",
+    lineAnswer: "Think of it like a traffic light for the deal. This line lists the only stages the escrow can be in — Created, Locked, Released, Disputed — so the contract always knows exactly where things stand and can never act out of order.",
     chatQuestion: "In plain English, what is an escrow and why do I need three people?",
+    chatAnswer: "An escrow is a neutral holding spot for money. Instead of trusting a stranger, the buyer puts the payment into the contract itself — where neither side can grab it. When the seller delivers, the funds release. The third person, the arbiter, only steps in if there's a dispute, deciding whether the seller gets paid or the buyer gets refunded. Three roles, zero blind trust.",
   },
   developer: {
     languages: ["JavaScript"],
     goal: "An escrow that locks a client's payment until a freelancer delivers the work, with an arbiter to resolve disputes",
     lineQuestion: "Why is this here?",
+    lineAnswer: "It's an enum — a fixed set of named states (like a TypeScript union of string literals). The contract can only ever be in one at a time, which lets you gate functions by state and reject invalid transitions.",
     chatQuestion: "How is a Solidity modifier different from middleware in Express?",
+    chatAnswer: "A modifier wraps a function with reusable checks — conceptually like Express middleware, but it runs inline: the `_;` marks where the function body executes. If a require() fails it reverts the entire transaction, so it's an all-or-nothing guard rather than a next() chain.",
   },
+};
+
+// Scripted, plain-English approval shown when each section passes review (no live AI).
+export const DEMO_APPROVALS: Record<string, string> = {
+  state: "Exactly right. You've declared the four stages the escrow can be in, the three people involved, and a place to hold the money — the foundation everything else builds on.",
+  modifiers: "Perfect. These are your bouncers: they make sure only the right person can call each action, and only when the contract is in the correct stage.",
+  deposit: "Nicely done. The buyer's payment is now locked inside the contract and the stage moves to Locked — the money is safely held, not sitting with any one person.",
+  resolution: "That's the heart of it. Funds release to the seller when the buyer's happy, or refund to the buyer if the arbiter steps in — and you updated the state before sending, which is the safe order.",
 };
 
 // The demo builds ONE coherent contract that grows section by section. Each part

@@ -8,7 +8,7 @@ import { useApp } from "../../context/AppContext";
 import ProgressStep from "../../components/ui/ProgressStep";
 import Spinner from "../../components/ui/Spinner";
 import { useIsMobile } from "../../hooks/useIsMobile";
-import { getDemo, DEMO_CONTENT, sleep } from "../../lib/demo";
+import { getDemo, sleep } from "../../lib/demo";
 import { apiUrl } from "../../lib/api";
 import { trackStage, trackProjectSelected } from "../../lib/analytics";
 import { STARTERS, type Starter } from "../../lib/starters";
@@ -20,9 +20,9 @@ export default function GoalCapture() {
   const { state, dispatch } = useApp();
   const isMobile = useIsMobile(640);
   const [goal, setGoal] = useState("");
-  // The custom free-text box is collapsed by default (beginners pick a card);
-  // the demo types into it, so auto-open there.
-  const [showCustom, setShowCustom] = useState(!!getDemo());
+  // The custom free-text box is collapsed by default (beginners pick a card; the
+  // demo picks the Escrow card too — see the autopilot below).
+  const [showCustom, setShowCustom] = useState(false);
   const [hov, setHov] = useState<string | null>(null);
   const loading = false;
 
@@ -45,35 +45,18 @@ export default function GoalCapture() {
   const startStarter = (s: Starter) => launch(s.goal, s.contractType, s.name, s.contractType, false);
   const handleContinue = () => { if (canContinue) launch(goal.trim(), "escrow", "New Build", "custom", true); };
 
-  // ── Demo autopilot: type the goal into the custom box, then submit ───────────
+  // ── Demo autopilot: browse the starter gallery, then pick Escrow ─────────────
   useEffect(() => {
-    const demo = getDemo();
-    if (!demo) return;
+    if (!getDemo()) return;
     let cancelled = false;
     (async () => {
-      await sleep(900);
-      const g = DEMO_CONTENT[demo.persona].goal;
-      const words = g.split(" ");
-      let acc = "";
-      for (const w of words) {
-        if (cancelled) return;
-        acc += (acc ? " " : "") + w;
-        setGoal(acc);
-        await sleep(70);
-      }
-      await sleep(900);
+      await sleep(1500);                     // let the gallery land + be read
       if (cancelled) return;
-      sessionStorage.removeItem("byuld_intent");
-      dispatch({ type: "SET_GOAL", goal: g, contractType: "escrow", projectName: "Escrow Contract" });
-      fetch(apiUrl("/api/classify-goal"), {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal: g, persona: demo.persona }),
-      }).then(r => r.ok ? r.json() : null).then(d => {
-        if (!d) return;
-        sessionStorage.setItem("byuld_intent", JSON.stringify(d));
-        if (d.projectName) dispatch({ type: "SET_GOAL", goal: g, contractType: "escrow", projectName: d.projectName });
-      }).catch(() => {});
-      navigate("/onboarding/review");
+      setHov("escrow");                      // highlight the Escrow card
+      await sleep(1200);
+      if (cancelled) return;
+      const escrow = STARTERS.find(s => s.id === "escrow");
+      if (escrow) startStarter(escrow);      // one click → into the plan flow
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps

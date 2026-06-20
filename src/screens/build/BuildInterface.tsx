@@ -19,7 +19,7 @@ import Button from "../../components/ui/Button";
 import Spinner from "../../components/ui/Spinner";
 import { useApp, UNLIMITED_TOKENS } from "../../context/AppContext";
 import { getSections, getSectionDef } from "../../lib/contracts";
-import { getDemo, DEMO_SECTION_IDS, DEMO_BODY_PARTS, DEMO_CONTENT, demoPrefix, appendToContract, setEditorValue, sleep } from "../../lib/demo";
+import { getDemo, DEMO_SECTION_IDS, DEMO_BODY_PARTS, DEMO_CONTENT, DEMO_APPROVALS, demoPrefix, appendToContract, setEditorValue, sleep } from "../../lib/demo";
 import type { SecurityIssue, BuildSectionDef } from "../../types";
 
 async function api<T>(endpoint: string, body: object): Promise<T> {
@@ -393,9 +393,43 @@ export default function BuildInterface() {
   }, [state.sections]);
 
   // ── Demo autopilot ───────────────────────────────────────────────────────────
+  // Scripted, deterministic handlers for the recorded walkthrough — no live AI, so
+  // every take is identical and fast. (The real app uses handleCheck/Ask/Message.)
+  const demoCheck = useCallback(async (code: string) => {
+    const def = sections[currentIdx];
+    if (!def) return;
+    setReviewState("reviewing");
+    await sleep(1000);
+    setReviewState("approved");
+    addMsg("byuld", DEMO_APPROVALS[def.id] || "That's correct — nicely done.");
+    dispatch({ type: "UPDATE_SECTION_CODE", id: def.id, code });
+    dispatch({ type: "COMPLETE_SECTION", id: def.id });
+    const nextIdx = currentIdx + 1;
+    if (nextIdx < sections.length) setTimeout(() => loadSection(nextIdx), 1100);
+    else {
+      addMsg("byuld", "All four sections complete. Let's run the security review before deploying.");
+      setTimeout(() => navigate("/review"), 1500);
+    }
+  }, [sections, currentIdx, addMsg, dispatch, navigate, loadSection]);
+
+  const demoAsk = useCallback(async (question: string, _line: string, _n: number) => {
+    setRightTab("ask");
+    addMsg("user", question);
+    await sleep(700);
+    addMsg("byuld", DEMO_CONTENT.founder.lineAnswer);
+  }, [addMsg]);
+
+  const demoChat = useCallback(async (text: string) => {
+    addMsg("user", text);
+    await sleep(800);
+    addMsg("byuld", DEMO_CONTENT.founder.chatAnswer);
+  }, [addMsg]);
+
   // Keep latest handlers/index in a ref so the long-running script never goes stale.
   const demoRef = useRef<any>({});
-  demoRef.current = { idx: currentIdx, check: handleCheck, ask: handleAskLine, chat: handleUserMessage };
+  demoRef.current = getDemo()
+    ? { idx: currentIdx, check: demoCheck, ask: demoAsk, chat: demoChat }
+    : { idx: currentIdx, check: handleCheck, ask: handleAskLine, chat: handleUserMessage };
   const demoStarted = useRef(false);
   useEffect(() => {
     const demo = getDemo();
@@ -405,16 +439,17 @@ export default function BuildInterface() {
     (async () => {
       // 1. Show the "how it works" overlay, then dismiss it.
       setShowHowTo(true);
-      await sleep(4200);
+      await sleep(2800);
       if (cancelled) return;
       setShowHowTo(false);
-      await sleep(900);
+      await sleep(700);
 
       const ids = DEMO_SECTION_IDS;
       for (let i = 0; i < ids.length; i++) {
         if (cancelled) return;
         // wait until we're actually on this section
         let g = 0; while (demoRef.current.idx !== i && g++ < 60) { if (cancelled) return; await sleep(150); }
+        setMTab("code");  // on small screens, make sure the editor is the visible panel before typing
         // Show the contract built so far immediately (no bare-scaffold flash), then
         // pause so the viewer can read the task before the new code is written.
         // We sync the stored section code only at the START (prefix) and END (snapshot)
@@ -434,13 +469,13 @@ export default function BuildInterface() {
         // On the first section, show off the inline "?" line-help and the chat.
         if (i === 0) {
           await demoRef.current.ask(DEMO_CONTENT[demo.persona].lineQuestion, "enum State { Created, Locked, Released, Disputed }", 5);
-          await sleep(5500);
+          await sleep(3800);
           if (cancelled) return;
           await demoRef.current.chat(DEMO_CONTENT[demo.persona].chatQuestion);
-          await sleep(6500);
+          await sleep(5200);
           if (cancelled) return;
           setRightTab("guide");
-          await sleep(900);
+          await sleep(800);
         }
 
         await demoRef.current.check(snapshot);  // REAL review against the contract so far

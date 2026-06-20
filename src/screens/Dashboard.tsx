@@ -8,7 +8,7 @@ import Badge from "../components/ui/Badge";
 import TokenMeter from "../components/ui/TokenMeter";
 import AccountMenu from "../components/layout/AccountMenu";
 import { useApp } from "../context/AppContext";
-import { getDemo, setDemo, clearDemo } from "../lib/demo";
+import { getDemo, clearDemo } from "../lib/demo";
 import { getDeployedBuilds, fetchBuildsRemote, type ServerBuild } from "../lib/builds";
 import { useScreenTime } from "../lib/analytics";
 
@@ -59,19 +59,11 @@ export default function Dashboard() {
 
   const firstName = state.email.split("@")[0] || "there";
 
-  // Demo autopilot: after the founder run lands here, chain into the developer run.
+  // Demo autopilot: the run ends here — the viewer sees the deployed build on the
+  // dashboard. Hold a beat, then clear the demo flag.
   useEffect(() => {
-    const demo = getDemo();
-    if (!demo) return;
-    if (demo.persona === "founder") {
-      const t = setTimeout(() => {
-        dispatch({ type: "RESET_SESSION", persona: null });
-        setDemo("developer");
-        navigate("/onboarding/persona");
-      }, 6500);
-      return () => clearTimeout(t);
-    }
-    const t = setTimeout(() => clearDemo(), 5000);
+    if (!getDemo()) return;
+    const t = setTimeout(() => clearDemo(), 6000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

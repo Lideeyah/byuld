@@ -35,10 +35,10 @@ export default function Success() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Demo autopilot: celebrate the deploy, then head to the dashboard.
+  // Demo autopilot: celebrate the deploy, then head straight to the dashboard.
   useEffect(() => {
     if (!getDemo()) return;
-    const t = setTimeout(() => navigate("/feedback"), 5500);
+    const t = setTimeout(() => navigate("/dashboard"), 4000);
     return () => clearTimeout(t);
   }, [navigate]);
 

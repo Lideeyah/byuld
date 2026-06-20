@@ -20,7 +20,7 @@ export default function Primer() {
   useEffect(() => {
     if (!getDemo()) return;
     let cancelled = false;
-    (async () => { await sleep(6000); if (!cancelled) navigate("/build"); })();
+    (async () => { await sleep(4000); if (!cancelled) navigate("/build"); })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

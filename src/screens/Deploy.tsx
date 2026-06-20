@@ -5,7 +5,7 @@ import Logo from "../components/layout/Logo";
 import Button from "../components/ui/Button";
 import Spinner from "../components/ui/Spinner";
 import { useApp } from "../context/AppContext";
-import { getDemo } from "../lib/demo";
+import { getDemo, sleep } from "../lib/demo";
 import { assembleContract } from "../lib/assemble";
 import { recordDeploy, saveBuildRemote } from "../lib/builds";
 import { apiUrl } from "../lib/api";
@@ -109,11 +109,29 @@ export default function Deploy() {
   };
   deployRef.current = deploy;
 
-  // Demo autopilot: show the summary, then deploy for real.
+  // Scripted deploy for the recorded demo — looks real, no on-chain wait/variance.
+  const demoDeploy = async () => {
+    setStep("deploying"); setStage(0); setError(null);
+    await sleep(1300); setStage(1);
+    await sleep(1500); setStage(2);
+    await sleep(1100);
+    const contractAddress = "0x7A9f3C2e1B8d4F6a0C5e2D9b7F1a3C8E6d4B2f0A";
+    const txHash = "0x" + "9e2b".padEnd(64, "a4f1");
+    dispatch({ type: "SET_CHAIN", chain: "sepolia" });
+    dispatch({ type: "SET_DEPLOYED", contractAddress, txHash });
+    recordDeploy({
+      email: state.email, name: state.projectName || "P2P Escrow",
+      contractType: "escrow", chain: "sepolia", contractAddress, txHash,
+      goal: state.goal, deployedAt: Date.now(),
+    });
+    setTimeout(() => navigate("/success"), 700);
+  };
+
+  // Demo autopilot: show the summary, then run the scripted deploy.
   useEffect(() => {
     if (!getDemo() || deployStarted.current) return;
     deployStarted.current = true;
-    const t = setTimeout(() => deployRef.current(), 3200);
+    const t = setTimeout(() => demoDeploy(), 2600);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

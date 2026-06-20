@@ -92,6 +92,7 @@ export default function Comprehension() {
   const submitSummary = async () => {
     if (summary.trim().length < 50 || loading) return;
     setLoading(true); setP1(null);
+    if (getDemo()) { await sleep(900); setP1({ kind: "pass", lines: ["You clearly understand what your contract does."] }); setPart(generated ? 3 : 2); setLoading(false); return; }
     try {
       const r = generated
         ? await post<{ passed: boolean; corrections?: string[] }>("/api/validate-understanding", {
@@ -109,6 +110,7 @@ export default function Comprehension() {
   const submitBug = async () => {
     if (bugLine.trim().length < 20 || bugEffect.trim().length < 20 || loading) return;
     setLoading(true); setP2(null);
+    if (getDemo()) { await sleep(900); setP2({ kind: "pass", lines: ["Exactly. The transfer happens before the state update — an attacker can re-enter release() and drain the contract. State must change first."] }); setPart(3); setLoading(false); return; }
     try {
       const r = await post<{ passed: boolean; hint?: string }>("/api/validate-bug-explanation", { field1: bugLine, field2: bugEffect });
       if (r.passed) { setP2({ kind: "pass", lines: ["Exactly. The transfer happens before the state update — an attacker can re-enter release() and drain the contract. State must change first."] }); setPart(3); }
@@ -120,6 +122,7 @@ export default function Comprehension() {
   const submitDecisions = async () => {
     if (d1.trim().length < 15 || d2.trim().length < 15 || d3.trim().length < 15 || loading) return;
     setLoading(true); setP3(null);
+    if (getDemo()) { await sleep(900); setP3({ kind: "pass", lines: ["You can defend every decision you made. You understand what you built."] }); setLoading(false); return; }
     try {
       const r = generated
         ? await post<{ passed: boolean; failures?: string[] }>("/api/validate-understanding", {
@@ -155,7 +158,7 @@ export default function Comprehension() {
       if (cancelled) return;
       await liveRef.current.submitSummary();
       await waitFor(() => liveRef.current.part >= 2);
-      await sleep(1400);
+      await sleep(1000);
       // Part 2 — find the bug
       setBugLine(DEMO_COMPREHENSION.bugLine);
       setBugEffect(DEMO_COMPREHENSION.bugEffect);
@@ -163,14 +166,14 @@ export default function Comprehension() {
       if (cancelled) return;
       await liveRef.current.submitBug();
       await waitFor(() => liveRef.current.part >= 3);
-      await sleep(1400);
+      await sleep(1000);
       // Part 3 — defend decisions
       setD1(DEMO_COMPREHENSION.d1); setD2(DEMO_COMPREHENSION.d2); setD3(DEMO_COMPREHENSION.d3);
-      await sleep(1400);
+      await sleep(1000);
       if (cancelled) return;
       await liveRef.current.submitDecisions();
       await waitFor(() => liveRef.current.p3?.kind === "pass");
-      await sleep(2000);
+      await sleep(1400);
       if (cancelled) return;
       navigate("/deploy");
     })();

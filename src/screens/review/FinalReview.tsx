@@ -57,31 +57,38 @@ export default function FinalReview() {
     const run = async () => {
       const assembled = assembleContract(state.sections, state.buildPlan);
 
+      const demo = !!getDemo();
+
       // Phase 1 — local static pattern check
-      await sleep(1500);
+      await sleep(demo ? 1100 : 1500);
       const patternIssues = patternCheck(assembled);
       setPhase("scanning-ai");
 
-      // Phase 2 — real Claude contextual review
+      // Phase 2 — real Claude contextual review (skipped in the scripted demo so the
+      // recording is deterministic; the local scan above still runs and is shown).
       let aiIssues: SecurityIssue[] = [];
-      try {
-        const res = await fetch(apiUrl("/api/security-review"), {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fullCode: assembled, goal: state.goal, persona: state.beginnerMode ? "founder" : (state.persona ?? "founder") }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          aiIssues = (data.issues ?? []).map((it: any, i: number) => ({
-            id: `ai-${i}`,
-            level: it.severity === "critical" ? "critical" : "warning",
-            name: it.title,
-            explanation: it.explanation,
-            historicalExample: it.historicalExample,
-            fix: it.fix,
-            acknowledged: false,
-          }));
-        }
-      } catch { /* fall back to pattern issues only */ }
+      if (demo) {
+        await sleep(1400);
+      } else {
+        try {
+          const res = await fetch(apiUrl("/api/security-review"), {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fullCode: assembled, goal: state.goal, persona: state.beginnerMode ? "founder" : (state.persona ?? "founder") }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            aiIssues = (data.issues ?? []).map((it: any, i: number) => ({
+              id: `ai-${i}`,
+              level: it.severity === "critical" ? "critical" : "warning",
+              name: it.title,
+              explanation: it.explanation,
+              historicalExample: it.historicalExample,
+              fix: it.fix,
+              acknowledged: false,
+            }));
+          }
+        } catch { /* fall back to pattern issues only */ }
+      }
 
       // Merge + de-duplicate by name
       const merged: SecurityIssue[] = [];

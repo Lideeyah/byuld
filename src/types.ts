@@ -78,6 +78,8 @@ export interface AppState {
   // onboarding
   persona: Persona;
   experienceLevel: ExperienceLevel;
+  /** User-toggled: force the simplest, plain-language explanations everywhere. */
+  beginnerMode: boolean;
   programmingLanguages: string[];
   goal: string;
   projectName: string;
@@ -108,6 +110,7 @@ export type AppAction =
   | { type: "SET_AUTHENTICATED"; walletAddress: string }
   | { type: "SET_PERSONA"; persona: Persona }
   | { type: "SET_EXPERIENCE"; level: ExperienceLevel }
+  | { type: "SET_BEGINNER_MODE"; on: boolean }
   | { type: "SET_LANGUAGES"; languages: string[] }
   | { type: "SET_GOAL"; goal: string; contractType: string; projectName?: string }
   | { type: "SET_SECTIONS"; sections: Section[] }

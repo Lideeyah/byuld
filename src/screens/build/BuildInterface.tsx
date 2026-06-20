@@ -9,6 +9,7 @@ import { apiUrl } from "../../lib/api";
 import { useScreenTime, trackQuestion, trackExplanation, trackConcept, trackAttempt, trackHint, trackExplainAgain, trackExample, trackReveal } from "../../lib/analytics";
 import { saveBuildRemote } from "../../lib/builds";
 import AssistanceLadder from "../../components/build/AssistanceLadder";
+import UnderstandingCheck from "../../components/build/UnderstandingCheck";
 import BuildSidebar from "../../components/layout/BuildSidebar";
 import EditorPanel from "../../components/build/EditorPanel";
 import ChatPanel from "../../components/build/ChatPanel";
@@ -107,7 +108,9 @@ export default function BuildInterface() {
   const currentIdx = state.currentSection;
   const currentStateSec = state.sections[currentIdx];
   const allComplete = state.sections.length > 0 && state.sections.every(s => s.status === "complete");
-  const persona = state.persona ?? "founder";
+  // Beginner Mode forces the plainest explanations regardless of the chosen persona.
+  const persona = state.beginnerMode ? "founder" : (state.persona ?? "founder");
+  const aiLevel = state.beginnerMode ? "founder" : state.experienceLevel;
 
   const addMsg = useCallback((role: "byuld" | "user", content: string) => {
     dispatch({ type: "ADD_MESSAGE", message: { role, content, timestamp: Date.now() } });
@@ -153,7 +156,7 @@ export default function BuildInterface() {
     if (state.email) {
       fetch(apiUrl("/api/track"), {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: state.email, persona: state.persona, experienceLevel: state.experienceLevel, contractType: state.contractType, chain: state.chain, tokensUsed: state.tokensUsed, stage: "building" }),
+        body: JSON.stringify({ email: state.email, persona: state.persona, experienceLevel: aiLevel, contractType: state.contractType, chain: state.chain, tokensUsed: state.tokensUsed, stage: "building" }),
       }).catch(() => {});
     }
     loadSection(currentIdx);
@@ -194,7 +197,7 @@ export default function BuildInterface() {
     try {
       const res = await api<{ passed: boolean; type: string; message: string; severity: string | null; tokensUsed: number }>(
         "/api/review-section",
-        { sectionId: def.id, userCode: code, persona, experienceLevel: state.experienceLevel, programmingLanguages: state.programmingLanguages,
+        { sectionId: def.id, userCode: code, persona, experienceLevel: aiLevel, programmingLanguages: state.programmingLanguages,
           requirements: def.requirements, sectionTitle: def.title, contractName: state.buildPlan?.contractName }
       );
       deductTokens(res.tokensUsed);
@@ -270,7 +273,7 @@ export default function BuildInterface() {
     try {
       const res = await api<{ passed: boolean; type: string; message: string; severity: string | null; tokensUsed: number }>(
         "/api/review-section",
-        { sectionId: def.id, userCode: codeRef.current, persona, experienceLevel: state.experienceLevel, programmingLanguages: state.programmingLanguages,
+        { sectionId: def.id, userCode: codeRef.current, persona, experienceLevel: aiLevel, programmingLanguages: state.programmingLanguages,
           requirements: def.requirements, sectionTitle: def.title, contractName: state.buildPlan?.contractName }
       );
       deductTokens(res.tokensUsed);
@@ -308,7 +311,7 @@ export default function BuildInterface() {
     try {
       const res = await api<{ response: string; tokensUsed: number }>("/api/chat", {
         message: question, line, lineNumber, sectionId: def?.id,
-        persona, experienceLevel: state.experienceLevel, currentCode: codeRef.current, chatHistory: state.messages.slice(-8),
+        persona, experienceLevel: aiLevel, currentCode: codeRef.current, chatHistory: state.messages.slice(-8),
       });
       addMsg("byuld", res.response);
       deductTokens(res.tokensUsed);
@@ -327,7 +330,7 @@ export default function BuildInterface() {
     try {
       const res = await api<{ response: string; tokensUsed: number }>("/api/chat", {
         message: text, sectionId: def?.id, currentCode: codeRef.current,
-        persona, experienceLevel: state.experienceLevel, chatHistory: state.messages.slice(-8),
+        persona, experienceLevel: aiLevel, chatHistory: state.messages.slice(-8),
       });
       addMsg("byuld", res.response);
       deductTokens(res.tokensUsed);
@@ -354,7 +357,7 @@ export default function BuildInterface() {
     try {
       const res = await api<{ response: string; tokensUsed: number }>("/api/chat", {
         message: prompts[kind], sectionId: def.id, currentCode: codeRef.current,
-        persona, experienceLevel: state.experienceLevel, chatHistory: state.messages.slice(-8),
+        persona, experienceLevel: aiLevel, chatHistory: state.messages.slice(-8),
       });
       addMsg("byuld", res.response);
       deductTokens(res.tokensUsed);
@@ -584,7 +587,12 @@ export default function BuildInterface() {
 
             <div style={{ flex: 1, minHeight: 0, display: (isMobile ? mTab === "guide" : rightTab === "guide") ? "flex" : "none", flexDirection: "column" }}>
               {sections[currentIdx] && !allComplete
-                ? <TaskGuide section={sections[currentIdx]} index={currentIdx} total={sections.length} persona={persona} languages={state.programmingLanguages} />
+                ? <>
+                    <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+                      <TaskGuide section={sections[currentIdx]} index={currentIdx} total={sections.length} persona={persona} languages={state.programmingLanguages} />
+                    </div>
+                    <UnderstandingCheck key={sections[currentIdx].id} concept={sections[currentIdx].title} onSimpler={() => requestHelp("explain")} />
+                  </>
                 : <div style={{ padding: "32px 20px", textAlign: "center", color: C.textMute, fontFamily: F.body, fontSize: "14px" }}>All sections done — run the security review.</div>}
             </div>
 

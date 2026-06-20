@@ -1076,6 +1076,55 @@ function computeLearning(windowKey) {
   }
   const concepts = [...conceptMap.values()].map((c) => ({ concept: c.concept, views: c.views, uniqueUsers: c.users.size, avgTimeSec: c.views ? Math.round(c.time / c.views / 1000) : 0 })).sort((a, b) => b.views - a.views);
 
+  // ── Assistance analytics: per-concept difficulty + overall help usage ──
+  const diff = new Map(); // concept -> { attempts, hints, examples, explains, reveals }
+  const bump = (concept, key) => {
+    if (!concept) return;
+    let d = diff.get(concept);
+    if (!d) { d = { concept, attempts: 0, hints: 0, examples: 0, explains: 0, reveals: 0 }; diff.set(concept, d); }
+    d[key]++;
+  };
+  let totalAttempts = 0, totalHints = 0, totalReveals = 0, totalHelp = 0;
+  for (const e of evs) {
+    if (e.type === "attempt") { bump(e.concept, "attempts"); totalAttempts++; }
+    else if (e.type === "hint_used") { bump(e.concept, "hints"); totalHints++; totalHelp++; }
+    else if (e.type === "example_view") { bump(e.concept, "examples"); totalHelp++; }
+    else if (e.type === "explain_again") { bump(e.concept, "explains"); totalHelp++; }
+    else if (e.type === "reveal_solution") { bump(e.concept, "reveals"); totalReveals++; }
+    else if (e.type === "help_request") { totalHelp++; }
+  }
+  const sectionsAttempted = new Set(evs.filter((e) => e.type === "attempt").map((e) => e.concept)).size;
+  const difficultConcepts = [...diff.values()]
+    .map((d) => ({ ...d, hintRate: d.attempts ? r1(d.hints / d.attempts) : 0 }))
+    .sort((a, b) => (b.reveals - a.reveals) || (b.hints - a.hints) || (b.attempts - a.attempts))
+    .slice(0, 12);
+  const assistance = {
+    totalAttempts, totalHints, totalReveals, totalHelpRequests: totalHelp,
+    avgAttemptsPerConcept: sectionsAttempted ? r1(totalAttempts / sectionsAttempted) : 0,
+    hintRate: totalAttempts ? r1(totalHints / totalAttempts) : 0,
+    revealRate: totalAttempts ? r1(totalReveals / totalAttempts) : 0,
+  };
+
+  // ── Understanding checks: "makes sense" vs "explain simpler" (by concept) ──
+  const ucMap = new Map(); // concept -> { yes, simpler }
+  let ucYes = 0, ucSimpler = 0;
+  for (const e of evs) if (e.type === "understanding_check") {
+    let u = ucMap.get(e.concept || "—");
+    if (!u) { u = { concept: e.concept || "—", yes: 0, simpler: 0 }; ucMap.set(e.concept || "—", u); }
+    if (e.value === "simpler") { u.simpler++; ucSimpler++; } else { u.yes++; ucYes++; }
+  }
+  const understanding = {
+    total: ucYes + ucSimpler,
+    makesSense: ucYes,
+    needSimpler: ucSimpler,
+    confusingConcepts: [...ucMap.values()].filter((u) => u.simpler > 0).sort((a, b) => b.simpler - a.simpler).slice(0, 10),
+  };
+
+  // ── Project / path selection popularity ──
+  const selMap = {};
+  for (const e of evs) if (e.type === "project_selected" && e.project) selMap[e.project] = (selMap[e.project] || 0) + 1;
+  const projectSelections = Object.entries(selMap).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+
   // ── User overview ── active = anyone with an event OR a recorded last-seen in the window.
   const activeIds = new Set(evs.map(identityOf));
   for (const u of USERS) if (u.email && (u.lastSeen || u.signedUpAt || 0) >= since) activeIds.add(u.email);
@@ -1118,7 +1167,12 @@ function computeLearning(windowKey) {
     .slice(-400).reverse()
     .map((e) => ({ ts: e.ts, who: e.email || (e.sessionId ? `anon·${String(e.sessionId).slice(0, 6)}` : "anonymous"), label: labelFor(e), type: e.type, screen: e.screen }));
 
-  return { windowKey, since, userOverview, funnel, learningMetrics, projects, concepts, returnAnalytics, activityFeed, sessionsCount: sessions.length };
+  return {
+    windowKey, since, userOverview, funnel, learningMetrics, projects, concepts,
+    returnAnalytics, activityFeed, sessionsCount: sessions.length,
+    // Assistance + understanding (the learning-assistance system).
+    assistance, difficultConcepts, understanding, projectSelections,
+  };
 }
 
 // ─── POST /api/admin/metrics ───────────────────────────────────────────────────

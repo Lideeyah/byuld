@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePrivy } from "@privy-io/react-auth";
-import { LayoutDashboard, Plus, Code2, LogOut } from "lucide-react";
+import { LayoutDashboard, Plus, Code2, LogOut, Sparkles } from "lucide-react";
 import { C, F, R } from "../../tokens";
 import { useApp } from "../../context/AppContext";
 
@@ -9,7 +9,7 @@ import { useApp } from "../../context/AppContext";
 // user can always reach their dashboard, start a new build, or log out.
 export default function AccountMenu() {
   const navigate = useNavigate();
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const { logout } = usePrivy();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -88,6 +88,22 @@ export default function AccountMenu() {
               <Code2 size={15} /> Back to editor
             </button>
           )}
+
+          <div style={{ height: "1px", background: C.border, margin: "4px 0" }} />
+
+          {/* Beginner mode — plainest explanations everywhere, one toggle */}
+          <button style={item} onClick={() => dispatch({ type: "SET_BEGINNER_MODE", on: !state.beginnerMode })}
+            onMouseEnter={e => (e.currentTarget.style.background = C.surface2)}
+            onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+            <Sparkles size={15} color={state.beginnerMode ? C.purple : C.textSec} />
+            <span style={{ flex: 1 }}>Beginner mode</span>
+            <span style={{ width: "32px", height: "18px", borderRadius: R.full, flexShrink: 0, background: state.beginnerMode ? C.purple : C.surface2, border: `1px solid ${state.beginnerMode ? C.purple : C.border}`, position: "relative", transition: "all 0.15s" }}>
+              <span style={{ position: "absolute", top: "2px", left: state.beginnerMode ? "16px" : "2px", width: "12px", height: "12px", borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
+            </span>
+          </button>
+          <div style={{ padding: "0 12px 8px 37px", fontSize: "11px", color: C.textMute, fontFamily: F.body, lineHeight: 1.4 }}>
+            Plain-language explanations, more analogies.
+          </div>
 
           <div style={{ height: "1px", background: C.border, margin: "4px 0" }} />
 

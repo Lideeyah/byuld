@@ -67,7 +67,7 @@ export default function FinalReview() {
       try {
         const res = await fetch(apiUrl("/api/security-review"), {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fullCode: assembled, goal: state.goal, persona: state.persona ?? "founder" }),
+          body: JSON.stringify({ fullCode: assembled, goal: state.goal, persona: state.beginnerMode ? "founder" : (state.persona ?? "founder") }),
         });
         if (res.ok) {
           const data = await res.json();

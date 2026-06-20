@@ -45,6 +45,8 @@ export default function PersonaSelection() {
     const p = personaOf(level);
     dispatch({ type: "SET_PERSONA", persona: p });
     dispatch({ type: "SET_EXPERIENCE", level });
+    // Beginners start in Beginner Mode by default (they can toggle it off anytime).
+    dispatch({ type: "SET_BEGINNER_MODE", on: level === "founder" || level === "student" });
     if (p === "developer" && languages.length) dispatch({ type: "SET_LANGUAGES", languages });
     // Record the onboarding role for analytics (best-effort).
     if (state.email) {

@@ -65,7 +65,7 @@ export default function IntentReview() {
       try {
         const res = await fetch(apiUrl("/api/generate-build-plan"), {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ goal: state.goal, persona: state.persona ?? "founder", programmingLanguages: state.programmingLanguages }),
+          body: JSON.stringify({ goal: state.goal, persona: state.beginnerMode ? "founder" : (state.persona ?? "founder"), programmingLanguages: state.programmingLanguages }),
         });
         const data = await res.json();
         if (cancelled) return;

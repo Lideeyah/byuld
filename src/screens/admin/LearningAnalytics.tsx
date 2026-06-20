@@ -19,6 +19,10 @@ export interface Learning {
   returnAnalytics: { returnRatePct: number; avgSessionsPerUser: number; avgProjectsPerUser: number; avgHoursBetweenSessions: number };
   activityFeed: { ts: number; who: string; label: string; type: string; screen: string | null }[];
   sessionsCount: number;
+  assistance?: { totalAttempts: number; totalHints: number; totalReveals: number; totalHelpRequests: number; avgAttemptsPerConcept: number; hintRate: number; revealRate: number };
+  difficultConcepts?: { concept: string; attempts: number; hints: number; examples: number; explains: number; reveals: number; hintRate: number }[];
+  understanding?: { total: number; makesSense: number; needSimpler: number; confusingConcepts: { concept: string; yes: number; simpler: number }[] };
+  projectSelections?: { name: string; count: number }[];
 }
 
 export interface FeedbackAnalytics {
@@ -208,7 +212,60 @@ export default function LearningAnalytics({
         </div>
       </div>
 
+      {/* Learning Assistance — attempts, hints, reveals (the assistance ladder) */}
+      {L.assistance && (
+        <div style={{ ...card, marginBottom: "14px" }}>
+          {sectionTitle("Learning Assistance")}
+          <div style={{ ...grid(4), marginBottom: L.difficultConcepts && L.difficultConcepts.length ? "16px" : 0 }}>
+            <Tile label="Avg attempts / concept" value={L.assistance.avgAttemptsPerConcept || 0} accent />
+            <Tile label="Hint usage rate" value={`${Math.round((L.assistance.hintRate || 0) * 100)}%`} sub="hints ÷ attempts" />
+            <Tile label="Reveal rate" value={`${Math.round((L.assistance.revealRate || 0) * 100)}%`} sub="answers revealed" />
+            <Tile label="Help requests" value={L.assistance.totalHelpRequests || 0} />
+          </div>
+          {L.difficultConcepts && L.difficultConcepts.length > 0 && (
+            <>
+              <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, marginBottom: "8px" }}>Most difficult concepts</div>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead><tr>{["Concept", "Attempts", "Hints", "Reveals"].map(h => (
+                  <th key={h} style={{ textAlign: h === "Concept" ? "left" : "right", fontSize: "10px", color: C.textMute, fontFamily: F.body, fontWeight: 600, padding: "0 0 8px", borderBottom: `1px solid ${C.border}` }}>{h}</th>
+                ))}</tr></thead>
+                <tbody>
+                  {L.difficultConcepts.slice(0, 8).map(d => (
+                    <tr key={d.concept}>
+                      <td style={{ padding: "8px 0", fontSize: "12px", color: C.textSec, fontFamily: F.body }}>{d.concept}</td>
+                      <td style={{ padding: "8px 0", fontSize: "12px", color: C.white, fontFamily: F.mono, textAlign: "right" }}>{d.attempts}</td>
+                      <td style={{ padding: "8px 0", fontSize: "12px", color: C.textMute, fontFamily: F.mono, textAlign: "right" }}>{d.hints}</td>
+                      <td style={{ padding: "8px 0", fontSize: "12px", color: (d.reveals > 0 ? C.danger : C.textMute), fontFamily: F.mono, textAlign: "right" }}>{d.reveals}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+        {/* Understanding checks */}
+        {L.understanding && (
+          <div style={card}>
+            {sectionTitle("Understanding Checks", L.understanding.total)}
+            <div style={{ ...grid(2), marginBottom: "14px" }}>
+              <Tile label="Makes sense" value={L.understanding.makesSense} accent />
+              <Tile label="Needed simpler" value={L.understanding.needSimpler} />
+            </div>
+            <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, marginBottom: "6px" }}>Concepts people asked to simplify</div>
+            {L.understanding.confusingConcepts.length === 0
+              ? <p style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body, margin: 0 }}>—</p>
+              : L.understanding.confusingConcepts.slice(0, 6).map(c => (
+                <div key={c.concept} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", fontSize: "12px", fontFamily: F.body }}>
+                  <span style={{ color: C.textSec }}>{c.concept}</span>
+                  <span style={{ color: C.warn, fontFamily: F.mono }}>{c.simpler}×</span>
+                </div>
+              ))}
+          </div>
+        )}
+
         {/* 6 · Feedback analytics */}
         <div style={card}>
           {sectionTitle("Feedback Analytics", feedback.total)}

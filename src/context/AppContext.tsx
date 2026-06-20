@@ -19,11 +19,11 @@ function loadFromStorage(): Partial<AppState> {
 
 function saveToStorage(state: AppState) {
   try {
-    const { email, walletAddress, isAuthenticated, persona, experienceLevel, programmingLanguages, goal, projectName, contractType, chain,
+    const { email, walletAddress, isAuthenticated, persona, experienceLevel, beginnerMode, programmingLanguages, goal, projectName, contractType, chain,
             tokensUsed, tokensLimit, contractAddress, txHash, deployedAt,
             sections, currentSection, messages, buildPlan, buildId } = state;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      email, walletAddress, isAuthenticated, persona, experienceLevel, programmingLanguages, goal, projectName, contractType, chain,
+      email, walletAddress, isAuthenticated, persona, experienceLevel, beginnerMode, programmingLanguages, goal, projectName, contractType, chain,
       tokensUsed, tokensLimit, contractAddress, txHash, deployedAt,
       sections, currentSection, messages, buildPlan, buildId,
     }));
@@ -46,6 +46,7 @@ const INITIAL: AppState = {
   isAuthenticated: persisted.isAuthenticated ?? false,
   persona: persisted.persona ?? null,
   experienceLevel: persisted.experienceLevel ?? null,
+  beginnerMode: persisted.beginnerMode ?? false,
   programmingLanguages: persisted.programmingLanguages ?? [],
   goal: persisted.goal ?? "",
   projectName: persisted.projectName ?? "",
@@ -144,6 +145,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, persona: action.persona };
     case "SET_EXPERIENCE":
       return { ...state, experienceLevel: action.level };
+    case "SET_BEGINNER_MODE":
+      return { ...state, beginnerMode: action.on };
     case "SET_LANGUAGES":
       return { ...state, programmingLanguages: action.languages };
     case "SET_GOAL":

@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { C, F, R } from "../../tokens";
 import BuildTopBar from "../../components/layout/BuildTopBar";
 import FlowProgress from "../../components/ui/FlowProgress";
-import { ClipboardList, MessageCircle, Check, AlertTriangle, Code2 } from "lucide-react";
+import { ClipboardList, MessageCircle, Check, AlertTriangle, Code2, X } from "lucide-react";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { apiUrl } from "../../lib/api";
-import { useScreenTime, trackQuestion, trackExplanation, trackConcept } from "../../lib/analytics";
+import { useScreenTime, trackQuestion, trackExplanation, trackConcept, trackAttempt, trackHint, trackExplainAgain, trackExample, trackReveal } from "../../lib/analytics";
 import { saveBuildRemote } from "../../lib/builds";
+import AssistanceLadder from "../../components/build/AssistanceLadder";
 import BuildSidebar from "../../components/layout/BuildSidebar";
 import EditorPanel from "../../components/build/EditorPanel";
 import ChatPanel from "../../components/build/ChatPanel";
@@ -94,6 +95,10 @@ export default function BuildInterface() {
   // Learning analytics: time in the IDE is one of our most important signals.
   useScreenTime("ide", { stage: "ide_entered" });
 
+  // Assistance ladder: attempts on the current section unlock help progressively.
+  const [attempts, setAttempts] = useState(0);
+  const [reveal, setReveal] = useState<{ phase: "confirm" | "show"; loading?: boolean; code?: string } | null>(null);
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialized = useRef(false);
@@ -131,6 +136,8 @@ export default function BuildInterface() {
     }
     dispatch({ type: "SET_MODE", mode: "C" });
     setReviewState("idle");
+    setAttempts(0);          // fresh section → fresh attempt ladder
+    setReveal(null);
     // Each section teaches one concept — record the view for concept analytics.
     if (def.title) trackConcept(def.title);
   }, [sections, state.sections, dispatch]);
@@ -203,6 +210,7 @@ export default function BuildInterface() {
           acknowledged: false,
         });
         setReviewState("rejected");
+        setAttempts(a => { const n = a + 1; trackAttempt(def.title, n); return n; });
         return;
       }
 
@@ -225,6 +233,7 @@ export default function BuildInterface() {
       } else {
         setReviewState("rejected");
         addMsg("byuld", res.message);  // hint only — never code
+        setAttempts(a => { const n = a + 1; trackAttempt(def.title, n); return n; });
       }
     } catch {
       setReviewState("rejected");
@@ -328,6 +337,49 @@ export default function BuildInterface() {
     setAiLoading(false);
   }, [sections, currentIdx, persona, state.messages, addMsg, deductTokens]);
 
+  // ── Assistance ladder: hint / explain / example (all via chat — never code) ──
+  const requestHelp = useCallback(async (kind: "hint" | "explain" | "example") => {
+    const def = sections[currentIdx];
+    if (!def || aiLoading) return;
+    const prompts = {
+      hint: "I'm stuck on this section. Give me a hint about what to do next — no code, just a nudge.",
+      explain: "Explain this section's concept again, but more simply, like I'm new to this.",
+      example: "Show me a small, everyday example that illustrates this idea — not the answer to my task.",
+    } as const;
+    const labels = { hint: "Need a hint?", explain: "Explain this again, more simply", example: "Show me an example" } as const;
+    if (kind === "hint") trackHint(def.title, attempts); else if (kind === "explain") trackExplainAgain(def.title); else trackExample(def.title);
+    setRightTab("ask");
+    addMsg("user", labels[kind]);
+    setAiLoading(true);
+    try {
+      const res = await api<{ response: string; tokensUsed: number }>("/api/chat", {
+        message: prompts[kind], sectionId: def.id, currentCode: codeRef.current,
+        persona, experienceLevel: state.experienceLevel, chatHistory: state.messages.slice(-8),
+      });
+      addMsg("byuld", res.response);
+      deductTokens(res.tokensUsed);
+    } catch { addMsg("byuld", "I couldn't fetch that right now — try again."); }
+    setAiLoading(false);
+  }, [sections, currentIdx, aiLoading, attempts, persona, state.experienceLevel, state.messages, addMsg, deductTokens]);
+
+  // Reveal the solution — earned only after several attempts. Read-only, no copy.
+  const revealSolution = useCallback(async () => {
+    const def = sections[currentIdx];
+    if (!def) return;
+    setReveal({ phase: "show", loading: true });
+    try {
+      const res = await api<{ solution: string; source: string }>("/api/reveal-section", {
+        sectionId: def.id, requirements: def.requirements, sectionTitle: def.title, contractName: state.buildPlan?.contractName,
+      });
+      trackReveal(def.title, attempts);
+      setReveal({ phase: "show", code: res.solution });
+    } catch {
+      setReveal(null);
+      setRightTab("ask");
+      addMsg("byuld", "I couldn't load the solution right now — try again in a moment.");
+    }
+  }, [sections, currentIdx, attempts, state.buildPlan, addMsg]);
+
   // ── Sidebar: view a completed section read-only ──────────────────────────────
   const handleSectionClick = useCallback((idx: number) => {
     const s = state.sections[idx];
@@ -409,6 +461,48 @@ export default function BuildInterface() {
       )}
       {securityBlock && <SecurityBlockModal issue={securityBlock} onRecheck={handleRecheck} checking={recheckLoading} />}
 
+      {reveal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(4,8,18,0.72)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }} onClick={() => setReveal(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: "560px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.xl, padding: "28px" }}>
+            {reveal.phase === "confirm" ? (
+              <>
+                <div style={{ fontSize: "11px", color: C.purple, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: F.body, marginBottom: "10px" }}>One moment</div>
+                <h2 style={{ fontSize: "20px", fontWeight: 700, fontFamily: F.display, color: C.white, marginBottom: "10px" }}>See the answer?</h2>
+                <p style={{ fontSize: "14px", color: C.textSec, fontFamily: F.body, lineHeight: 1.6, marginBottom: "22px" }}>
+                  You'll remember this far better if you try once more first. If you're truly stuck, you can read the solution — but you'll still type it yourself.
+                </p>
+                <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                  <Button variant="ghost" onClick={() => setReveal(null)}>Let me try again</Button>
+                  <Button onClick={revealSolution}>Show me the solution</Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                  <h2 style={{ fontSize: "18px", fontWeight: 700, fontFamily: F.display, color: C.white, margin: 0 }}>Reference solution</h2>
+                  <button onClick={() => setReveal(null)} aria-label="Close" style={{ background: "none", border: "none", color: C.textMute, cursor: "pointer", display: "flex" }}><X size={18} /></button>
+                </div>
+                <p style={{ fontSize: "12.5px", color: C.textMute, fontFamily: F.body, lineHeight: 1.5, marginBottom: "14px" }}>
+                  Read it, understand it, then type it into the editor yourself — that's how it sticks.
+                </p>
+                {reveal.loading || !reveal.code ? (
+                  <div style={{ padding: "32px", textAlign: "center", color: C.textMute, fontFamily: F.body, fontSize: "13px" }}><Spinner size={18} /> Loading…</div>
+                ) : (
+                  <pre style={{
+                    margin: 0, padding: "16px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: R.md,
+                    fontFamily: F.mono, fontSize: "12.5px", color: C.textSec, lineHeight: 1.6, overflowX: "auto",
+                    userSelect: "none", WebkitUserSelect: "none", whiteSpace: "pre-wrap",
+                  }}>{reveal.code}</pre>
+                )}
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "18px" }}>
+                  <Button onClick={() => setReveal(null)}>Got it — I'll type it</Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <BuildTopBar />
       <div style={{ padding: "8px 16px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0 }}>
         <FlowProgress phase={1} compact />
@@ -447,6 +541,14 @@ export default function BuildInterface() {
               readOnlyCode={viewSection?.code ?? null}
               readOnlyTitle={viewSection?.title ?? null}
               onCloseReadOnly={() => setViewSection(null)}
+            />
+            <AssistanceLadder
+              attempts={attempts}
+              busy={aiLoading}
+              onHint={() => requestHelp("hint")}
+              onExplain={() => requestHelp("explain")}
+              onExample={() => requestHelp("example")}
+              onReveal={() => setReveal({ phase: "confirm" })}
             />
             <div style={{ minHeight: "48px", background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "8px 16px", gap: "12px", flexShrink: 0, flexWrap: "wrap" }}>
               <ReviewIndicator state={reviewState} />

@@ -23,6 +23,27 @@ const EXPLORER: Record<string, string> = {
 const prettyType = (t: string) =>
   (t || "contract").replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
+const buildProgress = (sections?: { status: string }[] | null) => {
+  const total = sections?.length || 4;
+  const done = sections?.filter(s => s.status === "complete").length || 0;
+  return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
+};
+
+const relTime = (ts?: number) => {
+  if (!ts) return "";
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+};
+
+const ProgressBar = ({ pct }: { pct: number }) => (
+  <div style={{ height: "6px", background: C.surface2, borderRadius: "3px", overflow: "hidden", width: "100%" }}>
+    <div style={{ height: "100%", width: `${pct}%`, background: C.purple, borderRadius: "3px", transition: "width 0.4s" }} />
+  </div>
+);
+
 const SectionLabel = ({ children, count }: { children: React.ReactNode; count?: number }) => (
   <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
     <h2 style={{ fontSize: "13px", fontWeight: 700, color: C.textSec, fontFamily: F.body, letterSpacing: "0.03em", textTransform: "uppercase", margin: 0 }}>{children}</h2>
@@ -119,6 +140,25 @@ export default function Dashboard() {
       </nav>
 
       <div style={{ padding: "40px 28px 80px", maxWidth: "1040px", width: "100%", alignSelf: "center", boxSizing: "border-box" }}>
+        {/* Smart return trigger — focus on unfinished progress, not a generic nudge */}
+        {wipBuilds[0] && (() => {
+          const b = wipBuilds[0];
+          const p = buildProgress(b.sections);
+          const left = Math.max(0, p.total - p.done);
+          return (
+            <div style={{ marginBottom: "28px", padding: "18px 22px", background: `${C.purple}10`, border: `1px solid ${C.purple}44`, borderRadius: R.lg, display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: "220px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: C.purple, letterSpacing: "0.05em", textTransform: "uppercase", fontFamily: F.body, marginBottom: "5px" }}>Pick up where you left off</div>
+                <div style={{ fontSize: "14px", color: C.white, fontFamily: F.body, marginBottom: "10px" }}>
+                  You're <strong>{p.pct}%</strong> through your {b.name || b.projectName || "build"}{left > 0 ? ` — ${left} section${left === 1 ? "" : "s"} left to reach deployment.` : " — finish the review to deploy."}
+                </div>
+                <ProgressBar pct={p.pct} />
+              </div>
+              <Button onClick={() => continueBuild(b)}>Resume →</Button>
+            </div>
+          );
+        })()}
+
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "16px", marginBottom: "40px", flexWrap: "wrap" }}>
           <div>
@@ -145,25 +185,29 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            {/* Continue building — resumable from any device */}
-            {wipCount > 0 && (
+            {/* Continue building — the top unfinished build is in the banner above,
+                so list only the others here to avoid repeating it. */}
+            {(wipBuilds.length > 1 || localWip) && (
               <div style={{ marginBottom: "36px" }}>
                 <SectionLabel>Continue building</SectionLabel>
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {wipBuilds.map(b => {
-                    const total = b.sections?.length || 4;
-                    const done = b.sections?.filter(s => s.status === "complete").length || 0;
+                  {wipBuilds.slice(1).map(b => {
+                    const p = buildProgress(b.sections);
                     return (
                       <div key={b.buildId} style={{
                         padding: "20px 22px", background: `${C.purple}0C`, border: `1px solid ${C.purple}44`,
                         borderRadius: R.lg, display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap",
                       }}>
                         <div style={{ width: "44px", height: "44px", borderRadius: "12px", flexShrink: 0, background: `${C.purple}1E`, border: `1px solid ${C.purple}44`, display: "flex", alignItems: "center", justifyContent: "center", color: C.purple }}><Pencil size={19} /></div>
-                        <div style={{ flex: 1, minWidth: "180px" }}>
-                          <div style={{ fontSize: "15px", fontWeight: 600, color: C.white, fontFamily: F.body, marginBottom: "4px" }}>{b.name || b.projectName || b.goal || "Untitled build"}</div>
-                          <div style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>
-                            {prettyType(b.contractType || "escrow")} · {done}/{total} sections written
+                        <div style={{ flex: 1, minWidth: "200px" }}>
+                          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "10px", marginBottom: "4px" }}>
+                            <span style={{ fontSize: "15px", fontWeight: 600, color: C.white, fontFamily: F.body }}>{b.name || b.projectName || b.goal || "Untitled build"}</span>
+                            {b.updatedAt ? <span style={{ fontSize: "11px", color: C.textMute, fontFamily: F.mono }}>{relTime(b.updatedAt)}</span> : null}
                           </div>
+                          <div style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body, marginBottom: "9px" }}>
+                            {prettyType(b.contractType || "escrow")} · {p.done}/{p.total} sections · {p.pct}%
+                          </div>
+                          <ProgressBar pct={p.pct} />
                         </div>
                         <Button onClick={() => continueBuild(b)}>Continue →</Button>
                       </div>

@@ -517,6 +517,29 @@ Respond ONLY in JSON:
   }
 });
 
+// ─── POST /api/reveal-section ──────────────────────────────────────────────────
+// The ONE place Byuld shows code — and only after the user has genuinely attempted
+// a section (the client gates this behind several attempts). Returns the vetted
+// reference solution for escrow; for generated builds, writes the section body from
+// its requirements. The client shows it read-only (no copy) — they still type it.
+app.post("/api/reveal-section", async (req, res) => {
+  const { sectionId, requirements, sectionTitle, contractName } = req.body || {};
+  const section = ESCROW_SECTIONS[sectionId];
+  if (section?.solution) return res.json({ solution: section.solution, source: "reference", tokensUsed: 0 });
+  if (!requirements) return res.status(400).json({ error: "No requirements provided for this section" });
+  try {
+    const solution = await claude(
+      `You are Byuld. Write the Solidity code for ONE section of ${contractName ? `the ${contractName} contract` : "a contract"}. Output ONLY the lines that belong in this section's body (where the TODO comments are) — no contract header, no SPDX line, no pragma, no markdown fences, no commentary. Implement the requirements exactly and keep it minimal and correct.`,
+      `Section: ${sectionTitle}\nRequirements:\n${requirements}`,
+      500
+    );
+    const clean = String(solution).replace(/^```[a-z]*\n?/i, "").replace(/```\s*$/, "").trim();
+    res.json({ solution: clean, source: "ai", tokensUsed: 8 });
+  } catch (err) {
+    res.status(500).json({ error: "reveal_failed", message: err.message });
+  }
+});
+
 // ─── POST /api/explain-line ────────────────────────────────────────────────────
 // Explains ONE line conceptually. Never writes code. Token cost: 2
 

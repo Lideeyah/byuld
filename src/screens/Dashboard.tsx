@@ -9,7 +9,7 @@ import TokenMeter from "../components/ui/TokenMeter";
 import AccountMenu from "../components/layout/AccountMenu";
 import { useApp } from "../context/AppContext";
 import { getDemo, setDemo, clearDemo } from "../lib/demo";
-import { getDeployedBuilds, type BuildRecord } from "../lib/builds";
+import { getDeployedBuilds, fetchBuildsRemote, type ServerBuild } from "../lib/builds";
 import { useScreenTime } from "../lib/analytics";
 
 const EXPLORER: Record<string, string> = {
@@ -55,18 +55,41 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Real data: deployed builds from history + the current in-progress build (if any).
-  const deployed: BuildRecord[] = getDeployedBuilds(state.email);
+  // Builds are stored on the account (server) so they follow the user to any
+  // device; the local cache renders instantly while the server list loads.
+  const [serverBuilds, setServerBuilds] = useState<ServerBuild[]>([]);
+  useEffect(() => {
+    if (state.email) fetchBuildsRemote(state.email).then(setServerBuilds).catch(() => {});
+  }, [state.email]);
+
+  // Deployed — merge server + local, deduped by contract address.
+  const deployedMap = new Map<string, { id: string; name: string; contractType: string; contractAddress: string; chain: string; deployedAt: number }>();
+  for (const b of serverBuilds) {
+    if (b.status === "deployed" && b.contractAddress)
+      deployedMap.set(b.contractAddress, { id: b.contractAddress, name: b.name || b.projectName || b.goal || "Smart contract", contractType: b.contractType || "escrow", contractAddress: b.contractAddress, chain: b.chain || "sepolia", deployedAt: b.deployedAt || 0 });
+  }
+  for (const b of getDeployedBuilds(state.email)) {
+    if (b.contractAddress && !deployedMap.has(b.contractAddress))
+      deployedMap.set(b.contractAddress, { id: b.contractAddress, name: b.name, contractType: b.contractType, contractAddress: b.contractAddress, chain: b.chain, deployedAt: b.deployedAt || 0 });
+  }
+  const deployed = [...deployedMap.values()];
+
+  // In-progress (resumable). Server builds first; fall back to the live local session.
+  const deployedIds = new Set(deployed.map(d => d.contractAddress));
+  const wipBuilds = serverBuilds
+    .filter(b => b.status === "in_progress" && !(b.contractAddress && deployedIds.has(b.contractAddress)))
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const hasWrittenCode = state.sections.some(s => s.code && s.code.trim().length > 0);
-  const inProgress = (state.goal && hasWrittenCode && !state.contractAddress)
-    ? {
-        name: state.projectName || state.goal || "Untitled build",
-        contractType: state.buildPlan?.contractType || state.contractType || "escrow",
-        chain: state.chain,
-        done: state.sections.filter(s => s.status === "complete").length,
-        total: state.sections.length || 4,
-      }
-    : null;
+  const localWip = (state.goal && hasWrittenCode && !state.contractAddress && !wipBuilds.some(b => b.buildId === state.buildId));
+
+  const continueBuild = (b: ServerBuild) => {
+    dispatch({ type: "HYDRATE_BUILD", build: {
+      buildId: b.buildId, goal: b.goal || "", projectName: b.projectName || undefined,
+      contractType: b.contractType || undefined, chain: (b.chain as typeof state.chain) || undefined,
+      buildPlan: b.buildPlan || null, sections: b.sections || undefined, currentSection: b.currentSection || 0,
+    } });
+    navigate("/build");
+  };
 
   const copy = (addr: string) => {
     navigator.clipboard?.writeText(addr);
@@ -74,7 +97,8 @@ export default function Dashboard() {
     setTimeout(() => setCopied(""), 1800);
   };
 
-  const isEmpty = !inProgress && deployed.length === 0;
+  const wipCount = wipBuilds.length + (localWip ? 1 : 0);
+  const isEmpty = wipCount === 0 && deployed.length === 0;
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
@@ -102,8 +126,8 @@ export default function Dashboard() {
               Welcome back, {firstName}.
             </h1>
             <p style={{ fontSize: "14px", color: C.textMute, fontFamily: F.body }}>
-              {deployed.length > 0 || inProgress
-                ? `${deployed.length} deployed${inProgress ? " · 1 in progress" : ""}`
+              {deployed.length > 0 || wipCount > 0
+                ? `${deployed.length} deployed${wipCount > 0 ? ` · ${wipCount} in progress` : ""}`
                 : "Your builds will show up here."}
             </p>
           </div>
@@ -121,22 +145,45 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            {/* Continue building */}
-            {inProgress && (
+            {/* Continue building — resumable from any device */}
+            {wipCount > 0 && (
               <div style={{ marginBottom: "36px" }}>
                 <SectionLabel>Continue building</SectionLabel>
-                <div style={{
-                  padding: "20px 22px", background: `${C.purple}0C`, border: `1px solid ${C.purple}44`,
-                  borderRadius: R.lg, display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap",
-                }}>
-                  <div style={{ width: "44px", height: "44px", borderRadius: "12px", flexShrink: 0, background: `${C.purple}1E`, border: `1px solid ${C.purple}44`, display: "flex", alignItems: "center", justifyContent: "center", color: C.purple }}><Pencil size={19} /></div>
-                  <div style={{ flex: 1, minWidth: "180px" }}>
-                    <div style={{ fontSize: "15px", fontWeight: 600, color: C.white, fontFamily: F.body, marginBottom: "4px" }}>{inProgress.name}</div>
-                    <div style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>
-                      {prettyType(inProgress.contractType)} · {inProgress.done}/{inProgress.total} sections written
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {wipBuilds.map(b => {
+                    const total = b.sections?.length || 4;
+                    const done = b.sections?.filter(s => s.status === "complete").length || 0;
+                    return (
+                      <div key={b.buildId} style={{
+                        padding: "20px 22px", background: `${C.purple}0C`, border: `1px solid ${C.purple}44`,
+                        borderRadius: R.lg, display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap",
+                      }}>
+                        <div style={{ width: "44px", height: "44px", borderRadius: "12px", flexShrink: 0, background: `${C.purple}1E`, border: `1px solid ${C.purple}44`, display: "flex", alignItems: "center", justifyContent: "center", color: C.purple }}><Pencil size={19} /></div>
+                        <div style={{ flex: 1, minWidth: "180px" }}>
+                          <div style={{ fontSize: "15px", fontWeight: 600, color: C.white, fontFamily: F.body, marginBottom: "4px" }}>{b.name || b.projectName || b.goal || "Untitled build"}</div>
+                          <div style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>
+                            {prettyType(b.contractType || "escrow")} · {done}/{total} sections written
+                          </div>
+                        </div>
+                        <Button onClick={() => continueBuild(b)}>Continue →</Button>
+                      </div>
+                    );
+                  })}
+                  {localWip && (
+                    <div style={{
+                      padding: "20px 22px", background: `${C.purple}0C`, border: `1px solid ${C.purple}44`,
+                      borderRadius: R.lg, display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap",
+                    }}>
+                      <div style={{ width: "44px", height: "44px", borderRadius: "12px", flexShrink: 0, background: `${C.purple}1E`, border: `1px solid ${C.purple}44`, display: "flex", alignItems: "center", justifyContent: "center", color: C.purple }}><Pencil size={19} /></div>
+                      <div style={{ flex: 1, minWidth: "180px" }}>
+                        <div style={{ fontSize: "15px", fontWeight: 600, color: C.white, fontFamily: F.body, marginBottom: "4px" }}>{state.projectName || state.goal || "Untitled build"}</div>
+                        <div style={{ fontSize: "12px", color: C.textMute, fontFamily: F.body }}>
+                          {prettyType(state.buildPlan?.contractType || state.contractType || "escrow")} · {state.sections.filter(s => s.status === "complete").length}/{state.sections.length || 4} sections written
+                        </div>
+                      </div>
+                      <Button onClick={() => navigate("/build")}>Continue →</Button>
                     </div>
-                  </div>
-                  <Button onClick={() => navigate("/build")}>Continue →</Button>
+                  )}
                 </div>
               </div>
             )}

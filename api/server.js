@@ -49,6 +49,10 @@ let pool = DB_URL ? new pg.Pool({
 let USERS = [];
 let WAITLIST = [];
 let FEEDBACK = [];
+// Per-user builds, tied to the account (not the browser) so a returning user sees
+// their work on any device. One record per build, keyed by email+buildId; updated
+// as they build and marked deployed on a successful deploy.
+let BUILDS = [];
 // Append-only learning-analytics event log. Each entry is a single user action
 // (screen time, question asked, concept viewed, funnel stage reached, …) tagged
 // with a sessionId, so we can reconstruct journeys and measure understanding —
@@ -75,6 +79,7 @@ const persist = (key, val) => { if (pool) dbSave(key, val); else saveFile(key, v
 function saveUsers() { persist("users", USERS); }
 function saveWaitlist() { persist("waitlist", WAITLIST); }
 function saveFeedback() { persist("feedback", FEEDBACK); }
+function saveBuilds() { persist("builds", BUILDS); }
 // Events arrive in bursts (screen changes, questions). Debounce persistence so we
 // don't write the whole log on every single event.
 let eventsSaveTimer = null;
@@ -92,14 +97,15 @@ async function initStore() {
       WAITLIST = (await dbLoad("waitlist")) || [];
       FEEDBACK = (await dbLoad("feedback")) || [];
       EVENTS = (await dbLoad("events")) || [];
-      console.log(`[Byuld store] Postgres connected — users:${USERS.length} waitlist:${WAITLIST.length} feedback:${FEEDBACK.length} events:${EVENTS.length}`);
+      BUILDS = (await dbLoad("builds")) || [];
+      console.log(`[Byuld store] Postgres connected — users:${USERS.length} waitlist:${WAITLIST.length} feedback:${FEEDBACK.length} events:${EVENTS.length} builds:${BUILDS.length}`);
       return;
     } catch (e) {
       console.error("[Byuld store] DB init failed, falling back to files:", e.message);
       pool = null;
     }
   }
-  USERS = loadFile("users"); WAITLIST = loadFile("waitlist"); FEEDBACK = loadFile("feedback"); EVENTS = loadFile("events");
+  USERS = loadFile("users"); WAITLIST = loadFile("waitlist"); FEEDBACK = loadFile("feedback"); EVENTS = loadFile("events"); BUILDS = loadFile("builds");
   console.log("[Byuld store] file-backed (set DATABASE_URL for storage that survives redeploys)");
 }
 
@@ -770,6 +776,76 @@ app.post("/api/user-status", (req, res) => {
   if (!email) return res.json({ returning: false, persona: null, experienceLevel: null });
   const u = USERS.find((x) => String(x.email || "").toLowerCase() === email);
   res.json({ returning: !!u, persona: u?.persona ?? null, experienceLevel: u?.experienceLevel ?? null });
+});
+
+// ─── Builds: account-tied persistence ──────────────────────────────────────────
+// So a user's work (in-progress + deployed) follows them to any device. One record
+// per build, keyed by email + buildId.
+const prettyName = (t) => String(t || "contract").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+function upsertBuild(b) {
+  if (!b || !b.email || !b.buildId) return null;
+  const email = String(b.email).toLowerCase();
+  const buildId = String(b.buildId).slice(0, 64);
+  const now = Date.now();
+  const i = BUILDS.findIndex((x) => x.email === email && x.buildId === buildId);
+  const incoming = {
+    email, buildId,
+    status: b.status === "deployed" ? "deployed" : "in_progress",
+    name: b.name ? String(b.name).slice(0, 120) : null,
+    goal: b.goal ? String(b.goal).slice(0, 600) : null,
+    projectName: b.projectName ? String(b.projectName).slice(0, 120) : null,
+    contractType: b.contractType ? String(b.contractType).slice(0, 60) : null,
+    chain: b.chain ? String(b.chain).slice(0, 40) : null,
+    buildPlan: b.buildPlan ?? null,
+    sections: Array.isArray(b.sections) ? b.sections.slice(0, 12) : null,
+    currentSection: Number.isFinite(b.currentSection) ? b.currentSection : 0,
+    contractAddress: b.contractAddress ? String(b.contractAddress).slice(0, 80) : null,
+    txHash: b.txHash ? String(b.txHash).slice(0, 100) : null,
+    deployedAt: Number(b.deployedAt) || (b.status === "deployed" ? now : 0),
+    updatedAt: now,
+  };
+  if (i < 0) { BUILDS.push({ ...incoming, createdAt: now }); }
+  else {
+    const prev = BUILDS[i];
+    // Merge only fields the caller actually provided, so a partial save (e.g. a
+    // deploy that omits name/sections) never wipes existing values.
+    const provided = Object.fromEntries(Object.entries(incoming).filter(([, v]) => v !== null && v !== undefined));
+    // Don't let an in-progress save clobber a build that's already deployed.
+    const status = prev.status === "deployed" && incoming.status !== "deployed" ? "deployed" : incoming.status;
+    BUILDS[i] = { ...prev, ...provided, status, updatedAt: now, createdAt: prev.createdAt || now };
+  }
+  // Bound total stored builds defensively.
+  if (BUILDS.length > 5000) BUILDS = BUILDS.slice(-5000);
+  saveBuilds();
+  return true;
+}
+
+app.post("/api/builds/save", (req, res) => {
+  res.json({ ok: !!upsertBuild(req.body || {}) });
+});
+
+app.post("/api/builds/list", (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  if (!email) return res.json({ builds: [] });
+  let builds = BUILDS.filter((b) => b.email === email);
+  // Legacy fallback: users who deployed before builds were persisted still have
+  // their deploy recorded on their USER record — surface it so it isn't lost.
+  if (!builds.some((b) => b.status === "deployed")) {
+    const u = USERS.find((x) => String(x.email || "").toLowerCase() === email);
+    if (u && u.contractAddress) {
+      builds = builds.concat([{
+        email, buildId: u.contractAddress, status: "deployed",
+        name: u.projectName || prettyName(u.contractType),
+        contractType: u.contractType || "escrow", chain: u.chain || "sepolia",
+        contractAddress: u.contractAddress, txHash: u.txHash || null,
+        deployedAt: u.deployedAt || u.lastSeen || 0, createdAt: u.signedUpAt || 0, updatedAt: u.lastSeen || 0,
+        goal: u.goal || null, buildPlan: null, sections: null, currentSection: 0,
+      }]);
+    }
+  }
+  builds.sort((a, b) => (b.updatedAt || b.deployedAt || 0) - (a.updatedAt || a.deployedAt || 0));
+  res.json({ builds });
 });
 
 // ─── POST /api/feedback ────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import { ClipboardList, MessageCircle, Check, AlertTriangle, Code2 } from "lucid
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { apiUrl } from "../../lib/api";
 import { useScreenTime, trackQuestion, trackExplanation, trackConcept } from "../../lib/analytics";
+import { saveBuildRemote } from "../../lib/builds";
 import BuildSidebar from "../../components/layout/BuildSidebar";
 import EditorPanel from "../../components/build/EditorPanel";
 import ChatPanel from "../../components/build/ChatPanel";
@@ -151,6 +152,26 @@ export default function BuildInterface() {
     loadSection(currentIdx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist the in-progress build to the user's account so it survives sign-out and
+  // shows up (resumable) on any device. Saves on entry and whenever progress changes.
+  useEffect(() => {
+    if (!state.email || !state.goal || getDemo()) return;
+    const buildId = state.buildId || `wip_${state.email}`;
+    saveBuildRemote({
+      email: state.email,
+      buildId,
+      status: "in_progress",
+      name: state.projectName || state.goal,
+      goal: state.goal,
+      projectName: state.projectName,
+      contractType: state.buildPlan?.contractType || state.contractType,
+      chain: state.chain,
+      buildPlan: state.buildPlan,
+      sections: state.sections,
+      currentSection: state.currentSection,
+    });
+  }, [state.email, state.buildId, state.goal, state.currentSection, state.sections, state.projectName, state.contractType, state.chain, state.buildPlan]);
 
   // ── Mode B: review on debounce ──────────────────────────────────────────────
   const runReview = useCallback(async (code: string) => {

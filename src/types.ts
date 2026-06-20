@@ -99,6 +99,8 @@ export interface AppState {
   contractAddress: string;
   txHash: string;
   deployedAt: number;
+  // stable id for the current build, so it can be persisted/resumed server-side
+  buildId: string;
 }
 
 export type AppAction =
@@ -123,4 +125,9 @@ export type AppAction =
   | { type: "SET_GAS_FUNDED" }
   | { type: "SET_DEPLOYED"; contractAddress: string; txHash: string }
   | { type: "SET_BUILD_PLAN"; plan: BuildPlan }
+  | { type: "HYDRATE_BUILD"; build: {
+      buildId: string; goal: string; projectName?: string; contractType?: string; chain?: Chain;
+      buildPlan?: BuildPlan | null; sections?: Section[]; currentSection?: number;
+      contractAddress?: string; txHash?: string; deployedAt?: number;
+    } }
   | { type: "RESET_SESSION"; persona: Persona | null; languages?: string[] };

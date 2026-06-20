@@ -21,11 +21,11 @@ function saveToStorage(state: AppState) {
   try {
     const { email, walletAddress, isAuthenticated, persona, experienceLevel, programmingLanguages, goal, projectName, contractType, chain,
             tokensUsed, tokensLimit, contractAddress, txHash, deployedAt,
-            sections, currentSection, messages, buildPlan } = state;
+            sections, currentSection, messages, buildPlan, buildId } = state;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       email, walletAddress, isAuthenticated, persona, experienceLevel, programmingLanguages, goal, projectName, contractType, chain,
       tokensUsed, tokensLimit, contractAddress, txHash, deployedAt,
-      sections, currentSection, messages, buildPlan,
+      sections, currentSection, messages, buildPlan, buildId,
     }));
   } catch { /* ignore */ }
 }
@@ -65,7 +65,13 @@ const INITIAL: AppState = {
   contractAddress: persisted.contractAddress ?? "",
   txHash: persisted.txHash ?? "",
   deployedAt: persisted.deployedAt ?? 0,
+  buildId: persisted.buildId ?? "",
 };
+
+// A stable id for a build, so it can be saved/resumed against the user's account.
+function newBuildId(): string {
+  return "b_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
 
 function freshSections(): Section[] {
   return getSections().map((def, i) => ({
@@ -91,7 +97,7 @@ function reducer(state: AppState, action: AppAction): AppState {
         sections: freshSections(), currentSection: 0, messages: [],
         securityIssues: [], byuldFeePaid: false, gasFunded: false,
         contractAddress: "", txHash: "", deployedAt: 0,
-        tokensUsed: 0,
+        tokensUsed: 0, buildId: "",
       };
     case "SET_BUILD_PLAN": {
       // Adopt an AI-generated, tailored build. Rebuild the runtime section list
@@ -106,6 +112,28 @@ function reducer(state: AppState, action: AppAction): AppState {
         contractType: action.plan.contractType || state.contractType,
         sections, currentSection: 0, messages: [], securityIssues: [],
         contractAddress: "", txHash: "", deployedAt: 0,
+      };
+    }
+    case "HYDRATE_BUILD": {
+      // Restore a saved build (from the server) so the user can resume it on any
+      // device. Falls back to fresh escrow sections if the saved build had none.
+      const b = action.build;
+      const sections = b.sections && b.sections.length ? b.sections : freshSections();
+      return {
+        ...state,
+        buildId: b.buildId,
+        goal: b.goal ?? state.goal,
+        projectName: b.projectName ?? state.projectName,
+        contractType: b.contractType ?? state.contractType,
+        chain: b.chain ?? state.chain,
+        buildPlan: b.buildPlan ?? null,
+        sections,
+        currentSection: b.currentSection ?? 0,
+        messages: [],
+        securityIssues: [],
+        contractAddress: b.contractAddress ?? "",
+        txHash: b.txHash ?? "",
+        deployedAt: b.deployedAt ?? 0,
       };
     }
     case "SET_EMAIL":
@@ -133,6 +161,7 @@ function reducer(state: AppState, action: AppAction): AppState {
         messages: [],
         securityIssues: [],
         contractAddress: "", txHash: "", deployedAt: 0,
+        buildId: newBuildId(),
       };
     case "SET_SECTIONS":
       return { ...state, sections: action.sections, currentSection: 0 };

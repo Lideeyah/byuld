@@ -7,7 +7,7 @@ import Spinner from "../components/ui/Spinner";
 import { useApp } from "../context/AppContext";
 import { getDemo } from "../lib/demo";
 import { assembleContract } from "../lib/assemble";
-import { recordDeploy } from "../lib/builds";
+import { recordDeploy, saveBuildRemote } from "../lib/builds";
 import { apiUrl } from "../lib/api";
 import FlowProgress from "../components/ui/FlowProgress";
 
@@ -65,17 +65,35 @@ export default function Deploy() {
 
       dispatch({ type: "SET_CHAIN", chain: "sepolia" });
       dispatch({ type: "SET_DEPLOYED", contractAddress: data.contractAddress, txHash: data.txHash });
-      // Add to the user's build history so it shows on their dashboard.
+      // Add to the user's build history so it shows on their dashboard (local cache).
+      const buildName = state.projectName || state.goal || state.buildPlan?.contractName || "Smart contract";
+      const buildType = state.buildPlan?.contractType || state.contractType || "escrow";
       recordDeploy({
         email: state.email,
-        name: state.projectName || state.goal || state.buildPlan?.contractName || "Smart contract",
-        contractType: state.buildPlan?.contractType || state.contractType || "escrow",
+        name: buildName,
+        contractType: buildType,
         chain: "sepolia",
         contractAddress: data.contractAddress,
         txHash: data.txHash,
         goal: state.goal,
         deployedAt: Date.now(),
       });
+      // Persist to the account so it shows on any device the user signs in from.
+      if (state.email) {
+        saveBuildRemote({
+          email: state.email,
+          buildId: state.buildId || data.contractAddress,
+          status: "deployed",
+          name: buildName,
+          goal: state.goal,
+          projectName: state.projectName,
+          contractType: buildType,
+          chain: "sepolia",
+          contractAddress: data.contractAddress,
+          txHash: data.txHash,
+          deployedAt: Date.now(),
+        });
+      }
       if (state.email) {
         fetch(apiUrl("/api/notify-deploy"), {
           method: "POST", headers: { "Content-Type": "application/json" },

@@ -171,6 +171,10 @@ function recordEvent(ev) {
     concept: ev.concept ? String(ev.concept).slice(0, 80) : null,
     project: ev.project ? String(ev.project).slice(0, 60) : null,
     role: ev.role ? String(ev.role).slice(0, 40) : null,
+    // Generic extras: `n` (e.g. attempt number) and `value` (e.g. "makes_sense",
+    // "first_deploy", "custom") — used by the assistance ladder & understanding checks.
+    n: Number.isFinite(ev.n) ? ev.n : null,
+    value: ev.value ? String(ev.value).slice(0, 60) : null,
   };
   EVENTS.push(entry);
   if (EVENTS.length > EVENTS_CAP) EVENTS = EVENTS.slice(-EVENTS_CAP);

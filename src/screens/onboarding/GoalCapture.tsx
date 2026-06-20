@@ -7,30 +7,45 @@ import Textarea from "../../components/ui/Textarea";
 import { useApp } from "../../context/AppContext";
 import ProgressStep from "../../components/ui/ProgressStep";
 import Spinner from "../../components/ui/Spinner";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { getDemo, DEMO_CONTENT, sleep } from "../../lib/demo";
 import { apiUrl } from "../../lib/api";
-import { trackStage } from "../../lib/analytics";
+import { trackStage, trackProjectSelected } from "../../lib/analytics";
+import { STARTERS, type Starter } from "../../lib/starters";
 
 const STEPS = ["You", "Wallet", "Chain", "Goal", "Review"];
-
-const EXAMPLES = [
-  "A secure way to pay someone without trusting them upfront",
-  "An escrow for trading goods online",
-  "Holding a freelancer's payment until the work is delivered",
-  "A safe deposit between a buyer and seller with a referee",
-  "Releasing funds only when both sides are happy",
-];
 
 export default function GoalCapture() {
   const navigate = useNavigate();
   const { state, dispatch } = useApp();
+  const isMobile = useIsMobile(640);
   const [goal, setGoal] = useState("");
-  const [showExamples, setShowExamples] = useState(false);
+  // The custom free-text box is collapsed by default (beginners pick a card);
+  // the demo types into it, so auto-open there.
+  const [showCustom, setShowCustom] = useState(!!getDemo());
+  const [hov, setHov] = useState<string | null>(null);
   const loading = false;
 
   const canContinue = goal.trim().length >= 15;
 
-  // ── Demo autopilot: type the goal, then submit ──────────────────────────────
+  // Shared launch: set the goal/type, record it, and head into the plan flow.
+  const launch = (g: string, contractType: string, projectName: string, project: string, custom: boolean) => {
+    sessionStorage.removeItem("byuld_intent");
+    trackProjectSelected(project, custom);
+    trackStage("onboarding_complete", { project });
+    dispatch({ type: "SET_GOAL", goal: g, contractType, projectName });
+    navigate("/onboarding/review");
+    // Fire-and-forget: cache a friendly description for the review screen.
+    fetch(apiUrl("/api/classify-goal"), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ goal: g, persona: state.persona ?? "founder" }),
+    }).then(r => r.ok ? r.json() : null).then(d => { if (d) sessionStorage.setItem("byuld_intent", JSON.stringify(d)); }).catch(() => {});
+  };
+
+  const startStarter = (s: Starter) => launch(s.goal, s.contractType, s.name, s.contractType, false);
+  const handleContinue = () => { if (canContinue) launch(goal.trim(), "escrow", "New Build", "custom", true); };
+
+  // ── Demo autopilot: type the goal into the custom box, then submit ───────────
   useEffect(() => {
     const demo = getDemo();
     if (!demo) return;
@@ -38,7 +53,6 @@ export default function GoalCapture() {
     (async () => {
       await sleep(900);
       const g = DEMO_CONTENT[demo.persona].goal;
-      // animate typing word by word
       const words = g.split(" ");
       let acc = "";
       for (const w of words) {
@@ -51,7 +65,6 @@ export default function GoalCapture() {
       if (cancelled) return;
       sessionStorage.removeItem("byuld_intent");
       dispatch({ type: "SET_GOAL", goal: g, contractType: "escrow", projectName: "Escrow Contract" });
-      // Upgrade to the friendly AI name (e.g. "Marketplace Payment Escrow") when it lands.
       fetch(apiUrl("/api/classify-goal"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal: g, persona: demo.persona }),
@@ -66,73 +79,86 @@ export default function GoalCapture() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleContinue = () => {
-    if (!canContinue || loading) return;
-    const g = goal.trim();
-    // V1: every goal maps to escrow — no need to WAIT on the API to move forward.
-    // Set a sensible name now, navigate instantly, and personalise in the background.
-    // Generic placeholder; IntentReview generates the real tailored name (plan.projectName).
-    sessionStorage.removeItem("byuld_intent");
-    trackStage("onboarding_complete", { project: "escrow" });
-    dispatch({ type: "SET_GOAL", goal: g, contractType: "escrow", projectName: "New Build" });
-    navigate("/onboarding/review");
-
-    // Fire-and-forget: cache a description for the review screen's escrow fallback.
-    fetch(apiUrl("/api/classify-goal"), {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ goal: g, persona: state.persona ?? "founder" }),
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) sessionStorage.setItem("byuld_intent", JSON.stringify(data)); })
-      .catch(() => {});
-  };
-
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
-      <div style={{ width: "100%", maxWidth: "540px" }}>
-        <div style={{ textAlign: "center", marginBottom: "36px" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 20px 64px" }}>
+      <div style={{ width: "100%", maxWidth: "720px" }}>
+        <div style={{ textAlign: "center", marginBottom: "28px" }}>
           <Logo size="md" />
           <div style={{ marginTop: "32px", marginBottom: "12px" }}>
             <ProgressStep steps={STEPS} current={3} />
           </div>
           <h1 style={{ fontSize: "26px", fontWeight: 700, fontFamily: F.display, color: C.white, marginTop: "28px", marginBottom: "8px" }}>
-            What do you want to build?
+            Pick something to build
           </h1>
           <p style={{ fontSize: "14px", color: C.textSec, fontFamily: F.body, lineHeight: 1.6 }}>
-            Describe it in plain language. No technical terms needed.
+            Start with a guided project — you'll understand every line as you build it.
           </p>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "24px" }}>
-          <Textarea
-            value={goal}
-            onChange={e => setGoal(e.target.value)}
-            placeholder={`e.g. "${EXAMPLES[0]}"`}
-            maxChars={500}
-            style={{ minHeight: "120px" }}
-            autoFocus
-          />
+        {/* Starter gallery — one click to begin */}
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "12px" }}>
+          {STARTERS.map(s => {
+            const isHov = hov === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => startStarter(s)}
+                onMouseEnter={() => setHov(s.id)}
+                onMouseLeave={() => setHov(null)}
+                style={{
+                  textAlign: "left", cursor: "pointer", padding: "16px 18px",
+                  background: isHov ? `${C.purple}0E` : C.surface,
+                  border: `1px solid ${isHov ? C.purple : C.border}`,
+                  borderRadius: R.lg, transition: "all 0.14s", display: "flex", flexDirection: "column", gap: "10px",
+                  boxShadow: isHov ? `0 0 0 1px ${C.purple}44` : "none",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ width: "38px", height: "38px", borderRadius: "10px", flexShrink: 0, background: isHov ? `${C.purple}22` : C.surface2, border: `1px solid ${isHov ? C.purple + "55" : C.border}`, display: "flex", alignItems: "center", justifyContent: "center", color: isHov ? C.purple : C.textSec, transition: "all 0.14s" }}>
+                    <s.Icon size={19} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ fontSize: "15px", fontWeight: 600, color: C.white, fontFamily: F.body, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</span>
+                      {s.recommended && <span style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.mint, background: `${C.mint}18`, border: `1px solid ${C.mint}33`, borderRadius: R.full, padding: "1px 7px", whiteSpace: "nowrap", flexShrink: 0 }}>Good first build</span>}
+                    </div>
+                    <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body, marginTop: "2px" }}>
+                      {s.difficulty} · ~{s.minutes} min
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontSize: "12.5px", color: C.textSec, fontFamily: F.body, lineHeight: 1.5 }}>{s.blurb}</div>
+                <div style={{ fontSize: "11px", color: C.textMute, fontFamily: F.body }}>
+                  You'll learn: {s.concepts.join(" · ")}
+                </div>
+              </button>
+            );
+          })}
+        </div>
 
-          <button onClick={() => setShowExamples(!showExamples)} style={{ background: "none", border: "none", cursor: "pointer", color: C.purple, fontFamily: F.body, fontSize: "12px", textAlign: "left", padding: 0 }}>
-            {showExamples ? "Hide examples" : "Not sure? See examples ▾"}
-          </button>
-
-          {showExamples && (
-            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.md, overflow: "hidden" }}>
-              {EXAMPLES.map((ex, i) => (
-                <button key={i} onClick={() => { setGoal(ex); setShowExamples(false); }} style={{ width: "100%", padding: "11px 16px", textAlign: "left", background: "transparent", border: "none", borderBottom: i < EXAMPLES.length - 1 ? `1px solid ${C.border}` : "none", color: C.textSec, fontFamily: F.body, fontSize: "13px", cursor: "pointer" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = C.surface2)}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                  {ex}
-                </button>
-              ))}
+        {/* Custom idea — collapsed so beginners aren't faced with a blank page */}
+        <div style={{ marginTop: "20px" }}>
+          {!showCustom ? (
+            <button onClick={() => setShowCustom(true)} style={{ background: "none", border: "none", cursor: "pointer", color: C.purple, fontFamily: F.body, fontSize: "13px", padding: "4px 0" }}>
+              Have your own idea? Describe it instead ▾
+            </button>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ fontSize: "13px", color: C.textSec, fontFamily: F.body }}>Describe what you want to build, in plain language:</div>
+              <Textarea
+                value={goal}
+                onChange={e => setGoal(e.target.value)}
+                placeholder={`e.g. "A safe way to pay someone without trusting them upfront"`}
+                maxChars={500}
+                style={{ minHeight: "100px" }}
+                autoFocus
+              />
+              <Button fullWidth size="lg" disabled={!canContinue || loading} onClick={handleContinue} style={{ gap: "10px" }}>
+                {loading ? <><Spinner size={16} color="#fff" /> Byuld is reading your idea…</> : "Analyse my idea →"}
+              </Button>
             </div>
           )}
         </div>
-
-        <Button fullWidth size="lg" disabled={!canContinue || loading} onClick={handleContinue} style={{ gap: "10px" }}>
-          {loading ? <><Spinner size={16} color="#fff" /> Byuld is reading your idea…</> : "Analyse my idea →"}
-        </Button>
       </div>
     </div>
   );

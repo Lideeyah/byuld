@@ -36,6 +36,8 @@ export interface EventProps {
   concept?: string;
   project?: string;
   role?: string;
+  n?: number;
+  value?: string;
 }
 
 function payloadFor(type: string, props: EventProps) {
@@ -77,6 +79,17 @@ export const trackConcept = (concept: string, durationMs?: number) => track("con
 export const trackExplanation = (props: EventProps = {}) => track("explanation_view", props);
 export const trackAudit = (durationMs?: number) => track("audit_view", { screen: "audit", durationMs });
 export const trackSessionStart = () => track("session_start");
+
+// Learning-assistance + retention events
+export const trackProjectSelected = (project: string, custom = false) => track("project_selected", { project, value: custom ? "custom" : "starter" });
+export const trackAttempt = (concept: string, n: number) => track("attempt", { concept, n, screen: "ide" });
+export const trackHint = (concept: string, n: number) => track("hint_used", { concept, n, screen: "ide" });
+export const trackExample = (concept: string) => track("example_view", { concept, screen: "ide" });
+export const trackExplainAgain = (concept: string) => track("explain_again", { concept, screen: "ide" });
+export const trackReveal = (concept: string, attemptsBefore: number) => track("reveal_solution", { concept, n: attemptsBefore, screen: "ide" });
+export const trackHelpRequest = (concept: string) => track("help_request", { concept, screen: "ide" });
+export const trackUnderstanding = (concept: string, value: "makes_sense" | "simpler") => track("understanding_check", { concept, value });
+export const trackMilestone = (value: string) => track("milestone", { value });
 
 /**
  * Measure foreground time on a screen. Fires `screen_time` (durationMs) on

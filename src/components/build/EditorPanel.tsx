@@ -172,7 +172,7 @@ export default function EditorPanel({ onCodeChange, onAskLine, readOnlyCode, rea
   const headerLabel = viewingReadOnly ? readOnlyTitle : currentSec?.title;
 
   return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, position: "relative" }}>
+    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", minWidth: 0, position: "relative" }}>
       <div style={{ padding: "8px 16px", borderBottom: `1px solid ${C.border}`, background: C.surface, display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
         <div style={{ display: "flex", gap: "6px" }}>
           {["#FF5F57", "#FFBD2E", "#28C840"].map((c, i) => (

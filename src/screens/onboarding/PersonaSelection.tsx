@@ -70,7 +70,7 @@ export default function PersonaSelection() {
     const level: ExperienceLevel = demo.persona === "developer" ? "developer" : "founder";
     let cancelled = false;
     (async () => {
-      await sleep(1100);
+      await sleep(800);
       if (cancelled) return;
       setSelected(level);
       let languages: string[] = [];
@@ -83,7 +83,7 @@ export default function PersonaSelection() {
         }
         languages = DEMO_CONTENT.developer.languages;
       }
-      await sleep(900);
+      await sleep(700);
       if (cancelled) return;
       commit(level, languages);
       navigate("/onboarding/wallet");

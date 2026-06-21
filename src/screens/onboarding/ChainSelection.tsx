@@ -45,7 +45,7 @@ export default function ChainSelection() {
   // Demo autopilot: Sepolia is already selected — pause to show it, then continue.
   useEffect(() => {
     if (!getDemo()) return;
-    const t = setTimeout(() => { dispatch({ type: "SET_CHAIN", chain: "sepolia" }); navigate("/onboarding/goal"); }, 2600);
+    const t = setTimeout(() => { dispatch({ type: "SET_CHAIN", chain: "sepolia" }); navigate("/onboarding/goal"); }, 1500);
     return () => clearTimeout(t);
   }, [dispatch, navigate]);
 

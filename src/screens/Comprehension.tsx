@@ -151,29 +151,29 @@ export default function Comprehension() {
     let cancelled = false;
     const waitFor = async (fn: () => boolean) => { let g = 0; while (!fn() && g++ < 120) { if (cancelled) return; await sleep(300); } };
     (async () => {
-      await sleep(2000);
-      // Part 1 — summarise
+      await sleep(2400);
+      // Part 1 — summarise (the strongest beat — linger so the VO can land)
       setSummary(DEMO_COMPREHENSION.summary);
-      await sleep(1200);
+      await sleep(1800);
       if (cancelled) return;
       await liveRef.current.submitSummary();
       await waitFor(() => liveRef.current.part >= 2);
-      await sleep(1000);
+      await sleep(2600);
       // Part 2 — find the bug
       setBugLine(DEMO_COMPREHENSION.bugLine);
       setBugEffect(DEMO_COMPREHENSION.bugEffect);
-      await sleep(1300);
+      await sleep(1800);
       if (cancelled) return;
       await liveRef.current.submitBug();
       await waitFor(() => liveRef.current.part >= 3);
-      await sleep(1000);
+      await sleep(2600);
       // Part 3 — defend decisions
       setD1(DEMO_COMPREHENSION.d1); setD2(DEMO_COMPREHENSION.d2); setD3(DEMO_COMPREHENSION.d3);
-      await sleep(1000);
+      await sleep(1800);
       if (cancelled) return;
       await liveRef.current.submitDecisions();
       await waitFor(() => liveRef.current.p3?.kind === "pass");
-      await sleep(1400);
+      await sleep(3400);
       if (cancelled) return;
       navigate("/deploy");
     })();

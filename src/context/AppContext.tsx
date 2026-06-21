@@ -87,7 +87,7 @@ function reducer(state: AppState, action: AppAction): AppState {
       // so it never inherits a stale prior session.
       return {
         ...state,
-        email: action.persona === "developer" ? "dev@byuld.xyz" : "demo@byuld.xyz",
+        email: action.persona === "developer" ? "dev@byuld.xyz" : "maya@byuld.xyz",
         walletAddress: "0x7e10f4781e11f5b64Af32Ca0758bE7115654493c",
         isAuthenticated: true,
         persona: action.persona,

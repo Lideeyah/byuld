@@ -65,7 +65,7 @@ export default function WalletSetup() {
   // Demo autopilot: pause to show the wallet, then continue.
   useEffect(() => {
     if (!getDemo() || !ready) return;
-    const t = setTimeout(() => navigate("/onboarding/chain"), 3000);
+    const t = setTimeout(() => navigate("/onboarding/chain"), 1600);
     return () => clearTimeout(t);
   }, [ready, navigate]);
 

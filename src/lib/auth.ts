@@ -23,11 +23,16 @@ export async function resolveAuthDestination(
 ): Promise<AuthDestination> {
   const e = (email || "").trim();
   if (e) {
+    // Hard timeout: this runs right after sign-in, and a cold/asleep backend must
+    // never hang the redirect. If it's slow, fall back to local routing instantly.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3000);
     try {
       const res = await fetch(apiUrl("/api/user-status"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: e }),
+        signal: ctrl.signal,
       });
       if (res.ok) {
         const d = await res.json();
@@ -39,7 +44,9 @@ export async function resolveAuthDestination(
         return { path: "/onboarding/persona", persona: null, experienceLevel: null };
       }
     } catch {
-      /* fall through to local knowledge */
+      /* timed out or unreachable — fall through to local knowledge */
+    } finally {
+      clearTimeout(timer);
     }
   }
   if (priorAccount) return { path: "/dashboard", persona: localPersona, experienceLevel: null };

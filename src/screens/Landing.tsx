@@ -92,7 +92,7 @@ export default function Landing() {
         </p>
 
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center", marginBottom: "72px" }}>
-          <Button size="lg" onClick={() => navigate("/auth")}>Start Building — It's Free</Button>
+          <Button size="lg" onClick={() => navigate("/auth?start=1")}>Start Building — It's Free</Button>
           <Button variant="ghost" size="lg" onClick={() => setWaitlistOpen(true)}>
             Get Early Access
           </Button>
@@ -220,7 +220,7 @@ export default function Landing() {
           Ready to build your first contract?
         </h2>
         <p style={{ fontSize: "15px", color: C.textSec, fontFamily: F.body, marginBottom: "32px" }}>Free to start. Deploy to testnet — no real money at risk.</p>
-        <Button size="lg" onClick={() => navigate("/auth")}>Start Building</Button>
+        <Button size="lg" onClick={() => navigate("/auth?start=1")}>Start Building</Button>
       </div>
 
       {/* Footer */}

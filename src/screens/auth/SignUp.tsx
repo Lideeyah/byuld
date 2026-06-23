@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { usePrivy, useLoginWithEmail, useConnectWallet } from "@privy-io/react-auth";
 import { C, F } from "../../tokens";
 import Logo from "../../components/layout/Logo";
@@ -10,6 +10,8 @@ function isValidEmail(e: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); 
 
 export default function SignUp() {
   const navigate = useNavigate();
+  // "Start building" sends ?start=1 → frame this as creating an account, not "sign in".
+  const isStart = new URLSearchParams(useLocation().search).get("start") === "1";
   const { state, dispatch } = useApp();
   const { authenticated, ready } = usePrivy();
   const { sendCode } = useLoginWithEmail();
@@ -74,7 +76,7 @@ export default function SignUp() {
         </div>
 
         <h1 style={{ fontSize: "24px", fontWeight: 700, fontFamily: F.display, color: C.white, textAlign: "center", marginBottom: "8px" }}>
-          {state.persona ? "Welcome back" : "Sign in to Byuld"}
+          {state.persona ? "Welcome back" : isStart ? "Create your free account" : "Sign in to Byuld"}
         </h1>
         <p style={{ fontSize: "14px", color: C.textSec, fontFamily: F.body, textAlign: "center", lineHeight: 1.55, marginBottom: "28px" }}>
           {state.persona

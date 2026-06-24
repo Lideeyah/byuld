@@ -8,23 +8,28 @@ export interface AuthDestination {
 
 // Decide where to send a user immediately after they sign in.
 //
-// The source of truth is the server: if their email is already a Byuld user, they
-// have onboarded before → go straight to the dashboard. New emails → onboarding.
-// This is what makes returning users on a fresh browser/device skip onboarding
-// (localStorage is per-device and empty for them). Falls back to local session
-// knowledge only if the server can't be reached.
-// `priorAccount` = this person has authenticated with Byuld before (a returning
-// Privy account), even if they never finished onboarding. Such users go to the
-// dashboard too — only a genuinely first-time email is sent through onboarding.
+// THE RULE (deliberately simple so a returning user can NEVER be trapped in
+// onboarding): the dashboard is the default for everyone. We send a user through
+// onboarding ONLY when they are a genuinely brand-new account that we don't
+// recognise from any signal — Privy says it's a new account (`isNewUser === true`),
+// AND the server has no record of them, AND there's no local persona.
+//
+// `isNewUser` comes from Privy's email-login callback (authoritative). When it's
+// unavailable (session restore / magic-link), it's left undefined and we default to
+// the dashboard — a session that restored is, by definition, a returning one.
 export async function resolveAuthDestination(
   email: string,
   localPersona: string | null,
-  priorAccount = false,
+  opts: { isNewUser?: boolean } = {},
 ): Promise<AuthDestination> {
   const e = (email || "").trim();
+  let serverReturning = false;
+  let serverPersona: string | null = null;
+  let serverLevel: string | null = null;
+
   if (e) {
     // Hard timeout: this runs right after sign-in, and a cold/asleep backend must
-    // never hang the redirect. If it's slow, fall back to local routing instantly.
+    // never hang the redirect. If it's slow we just route on local knowledge.
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 3000);
     try {
@@ -36,19 +41,21 @@ export async function resolveAuthDestination(
       });
       if (res.ok) {
         const d = await res.json();
-        if (d.returning) {
-          return { path: "/dashboard", persona: d.persona ?? localPersona ?? null, experienceLevel: d.experienceLevel ?? null };
-        }
-        // Not in our records, but a returning Privy account → still skip onboarding.
-        if (priorAccount) return { path: "/dashboard", persona: localPersona, experienceLevel: null };
-        return { path: "/onboarding/persona", persona: null, experienceLevel: null };
+        serverReturning = !!d.returning;
+        serverPersona = d.persona ?? null;
+        serverLevel = d.experienceLevel ?? null;
       }
     } catch {
-      /* timed out or unreachable — fall through to local knowledge */
+      /* timed out or unreachable — treat as unknown, default to dashboard */
     } finally {
       clearTimeout(timer);
     }
   }
-  if (priorAccount) return { path: "/dashboard", persona: localPersona, experienceLevel: null };
-  return { path: localPersona ? "/dashboard" : "/onboarding/persona", persona: localPersona, experienceLevel: null };
+
+  // Onboarding only for a truly new, unrecognised account.
+  if (opts.isNewUser === true && !serverReturning && !localPersona) {
+    return { path: "/onboarding/persona", persona: null, experienceLevel: null };
+  }
+  // Everyone else → dashboard (hydrate persona/level from the server when we have it).
+  return { path: "/dashboard", persona: serverPersona ?? localPersona ?? null, experienceLevel: serverLevel ?? null };
 }

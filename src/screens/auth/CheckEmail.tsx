@@ -18,8 +18,8 @@ export default function CheckEmail() {
       // even without a server record we skip onboarding. Works on any device.
       const a = args as { isNewUser?: boolean; user?: { email?: { address?: string } } };
       const email = state.email || a?.user?.email?.address || "";
-      const priorAccount = a?.isNewUser === false;
-      const dest = await resolveAuthDestination(email, state.persona, priorAccount);
+      // Privy's isNewUser is the authoritative new-vs-returning signal here.
+      const dest = await resolveAuthDestination(email, state.persona, { isNewUser: a?.isNewUser });
       if (dest.persona) {
         dispatch({ type: "SET_PERSONA", persona: dest.persona as Persona });
         if (dest.experienceLevel) dispatch({ type: "SET_EXPERIENCE", level: dest.experienceLevel as ExperienceLevel });

@@ -58,10 +58,11 @@ function PrivyAuthSync() {
     const onAuthScreen = ["/auth", "/check-email"].includes(location.pathname);
     if (onAuthScreen) {
       const email = emailAccount?.address || state.email || "";
-      // A Privy account created more than a couple minutes ago is a returning user.
-      const createdAt = user?.createdAt ? new Date(user.createdAt).getTime() : 0;
-      const priorAccount = createdAt > 0 && Date.now() - createdAt > 120_000;
-      resolveAuthDestination(email, state.persona, priorAccount).then((dest) => {
+      // This path is session-restore / magic-link — i.e. an already-returning
+      // session — so isNewUser is left undefined and resolveAuthDestination
+      // defaults to the dashboard. (Brand-new code-logins are routed by
+      // CheckEmail.onComplete, which has Privy's authoritative isNewUser.)
+      resolveAuthDestination(email, state.persona).then((dest) => {
         if (dest.persona) {
           dispatch({ type: "SET_PERSONA", persona: dest.persona as Persona });
           if (dest.experienceLevel) dispatch({ type: "SET_EXPERIENCE", level: dest.experienceLevel as ExperienceLevel });

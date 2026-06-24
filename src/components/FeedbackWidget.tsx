@@ -39,6 +39,12 @@ export default function FeedbackWidget() {
   // On the build screen the bottom-right holds the "Ask Byuld" chat input, so float
   // the button above it; elsewhere it sits in the bottom-right corner.
   const bottom = location.pathname === "/build" ? "104px" : "20px";
+  // The dashboard centres its content in a 1040px column. Pin the button to that
+  // column's right edge so it doesn't float lost in the wide outer margin; on
+  // narrower screens it falls back to the normal 20px corner.
+  const right = location.pathname === "/dashboard"
+    ? "max(20px, calc((100vw - 1040px) / 2 + 28px))"
+    : "20px";
 
   const close = () => { setOpen(false); setTimeout(() => { setDone(false); setIssue(""); setConfused(""); setImprove(""); }, 200); };
 
@@ -59,7 +65,7 @@ export default function FeedbackWidget() {
     <>
       {!open && (
         <button onClick={() => setOpen(true)} style={{
-          position: "fixed", bottom, right: "20px", zIndex: 9000,
+          position: "fixed", bottom, right, zIndex: 9000,
           padding: "9px 16px", background: C.surface, border: `1px solid ${C.border}`,
           borderRadius: R.full, color: C.textSec, fontFamily: F.body, fontSize: "13px", fontWeight: 600,
           cursor: "pointer", boxShadow: "0 6px 20px rgba(0,0,0,0.35)", display: "flex", alignItems: "center", gap: "7px",
@@ -69,7 +75,7 @@ export default function FeedbackWidget() {
       )}
 
       {open && (
-        <div style={{ position: "fixed", bottom, right: "20px", zIndex: 9001, width: "320px", maxWidth: "calc(100vw - 40px)",
+        <div style={{ position: "fixed", bottom, right, zIndex: 9001, width: "320px", maxWidth: "calc(100vw - 40px)",
           background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.lg, boxShadow: "0 16px 44px rgba(0,0,0,0.5)", padding: "18px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
             <span style={{ fontSize: "14px", fontWeight: 700, color: C.white, fontFamily: F.display }}>Share feedback</span>

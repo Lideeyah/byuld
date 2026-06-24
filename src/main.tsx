@@ -54,7 +54,11 @@ createRoot(document.getElementById("root")!).render(
         appId={privyAppId}
         config={{
           loginMethods: ["email", "wallet"],
-          embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
+          // Do NOT force embedded-wallet creation on login. The Privy app has embedded
+          // wallet creation turned off, so requesting it here made loginWithCode fail
+          // with unknown_auth_error. Email auth works without it (deploys use the
+          // server's funded wallet, not the user's).
+          embeddedWallets: { ethereum: { createOnLogin: "off" }, solana: { createOnLogin: "off" } },
           appearance: {
             theme: "dark",
             accentColor: "#7B5CF0",

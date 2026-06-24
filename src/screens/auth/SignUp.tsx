@@ -34,11 +34,10 @@ export default function SignUp() {
   const connectMetaMask = () => {
     setError("");
     if (!ready) { setError("Still getting ready — try again in a second."); return; }
-    if (typeof window !== "undefined" && !(window as any).ethereum) {
-      setError("No wallet detected. Install MetaMask, or just use the email option above.");
-      return;
-    }
-    try { connectWallet(); } catch { setError("Couldn't open your wallet. Is MetaMask installed and unlocked?"); }
+    // Let Privy detect wallets (EIP-6963) and show its picker. The old
+    // `window.ethereum` precheck gave a false "no wallet detected" when several
+    // wallet extensions were installed; Privy's onError handles a genuine absence.
+    try { connectWallet(); } catch { setError("Couldn't open your wallet. Make sure it's installed and unlocked, or use the email option above."); }
   };
 
   const [email, setEmail] = useState("");
